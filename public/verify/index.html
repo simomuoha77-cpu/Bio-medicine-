@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>Verify Account</title>
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+
+<style>
+
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+  font-family:Arial,sans-serif;
+}
+
+body{
+  background:#071018;
+  color:white;
+}
+
+.verify-container{
+  width:100%;
+  min-height:100vh;
+
+  display:flex;
+}
+
+/* LEFT */
+
+.left-side{
+
+  flex:1;
+
+  position:relative;
+
+  background:url('https://images.unsplash.com/photo-1580281657527-47d5d3c6b8d4?q=80&w=1200');
+
+  background-size:cover;
+
+  background-position:center;
+
+  display:flex;
+
+  justify-content:center;
+
+  align-items:center;
+
+}
+
+.overlay{
+
+  position:absolute;
+
+  width:100%;
+
+  height:100%;
+
+  background:rgba(0,0,0,0.6);
+
+}
+
+.left-content{
+
+  position:relative;
+
+  z-index:2;
+
+  text-align:center;
+
+  padding:40px;
+
+}
+
+.left-content h1{
+
+  font-size:55px;
+
+  color:#00d9ff;
+
+  margin-bottom:20px;
+
+}
+
+.left-content p{
+
+  max-width:500px;
+
+  color:#ddd;
+
+  line-height:1.8;
+
+  font-size:18px;
+
+}
+
+/* RIGHT */
+
+.right-side{
+
+  flex:1;
+
+  background:#071018;
+
+  display:flex;
+
+  justify-content:center;
+
+  align-items:center;
+
+  padding:40px;
+
+}
+
+.verify-box{
+
+  width:100%;
+
+  max-width:430px;
+
+}
+
+.verify-box h2{
+
+  font-size:45px;
+
+  margin-bottom:10px;
+
+}
+
+.small-text{
+
+  color:#c2c2c2;
+
+  margin-bottom:35px;
+
+}
+
+/* INPUT */
+
+.input-box{
+
+  width:100%;
+
+  height:60px;
+
+  background:#111d29;
+
+  border-radius:12px;
+
+  display:flex;
+
+  align-items:center;
+
+  padding:0 20px;
+
+  margin-bottom:20px;
+
+}
+
+.input-box i{
+
+  color:#00d9ff;
+
+  margin-right:15px;
+
+  font-size:18px;
+
+}
+
+.input-box input{
+
+  flex:1;
+
+  height:100%;
+
+  background:transparent;
+
+  border:none;
+
+  outline:none;
+
+  color:white;
+
+  font-size:16px;
+
+}
+
+button{
+
+  width:100%;
+
+  padding:18px;
+
+  border:none;
+
+  border-radius:12px;
+
+  background:#00d9ff;
+
+  color:black;
+
+  font-size:16px;
+
+  font-weight:bold;
+
+  cursor:pointer;
+
+  transition:0.3s;
+
+}
+
+button:hover{
+
+  transform:translateY(-3px);
+
+  box-shadow:
+  0 0 25px
+  rgba(0,217,255,0.4);
+
+}
+
+#message{
+
+  margin-top:20px;
+
+  color:#00ff95;
+
+}
+
+/* MOBILE */
+
+@media(max-width:950px){
+
+  .left-side{
+    display:none;
+  }
+
+  .right-side{
+    width:100%;
+  }
+
+}
+
+</style>
+
+</head>
+<body>
+
+<div class="verify-container">
+
+  <!-- LEFT -->
+
+  <div class="left-side">
+
+    <div class="overlay"></div>
+
+    <div class="left-content">
+
+      <h1>
+        VERIFY ACCOUNT
+      </h1>
+
+      <p>
+        Enter the verification code sent to your email to activate your account.
+      </p>
+
+    </div>
+
+  </div>
+
+  <!-- RIGHT -->
+
+  <div class="right-side">
+
+    <div class="verify-box">
+
+      <h2>
+        Verification
+      </h2>
+
+      <p class="small-text">
+        Enter your verification code
+      </p>
+
+      <form id="verifyForm">
+
+        <div class="input-box">
+
+          <i class="fa-solid fa-envelope"></i>
+
+          <input
+          type="email"
+          id="email"
+          placeholder="Email Address"
+          required>
+
+        </div>
+
+        <div class="input-box">
+
+          <i class="fa-solid fa-key"></i>
+
+          <input
+          type="text"
+          id="code"
+          placeholder="Verification Code"
+          required>
+
+        </div>
+
+        <button type="submit">
+          Verify Account
+        </button>
+
+      </form>
+
+      <div id="message"></div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+
+const verifyForm =
+document.getElementById(
+"verifyForm"
+);
+
+const message =
+document.getElementById(
+"message"
+);
+
+verifyForm.addEventListener(
+"submit",
+async (e)=>{
+
+  e.preventDefault();
+
+  const email =
+  document.getElementById(
+  "email"
+  ).value;
+
+  const code =
+  document.getElementById(
+  "code"
+  ).value;
+
+  const response =
+  await fetch("/verify",{
+
+    method:"POST",
+
+    headers:{
+      "Content-Type":
+      "application/json"
+    },
+
+    body:JSON.stringify({
+
+      email,
+      code
+
+    })
+
+  });
+
+  const data =
+  await response.json();
+
+  if(data.success){
+
+    message.innerHTML =
+    "Account Verified ✅";
+
+    setTimeout(()=>{
+
+      window.location.href =
+      "/login";
+
+    },1500);
+
+  }else{
+
+    message.innerHTML =
+    data.message;
+
+  }
+
+});
+
+</script>
+
+</body>
+</html>

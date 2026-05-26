@@ -1,0 +1,542 @@
+<!--
+  ╔══════════════════════════════════════════════╗
+  ║  JuanAi Widget — embed in ANY page           ║
+  ║  Just paste this file's <style> + <div> +    ║
+  ║  <script> block before </body> on every page ║
+  ╚══════════════════════════════════════════════╝
+
+  HOW TO USE:
+  1. Add the /api/juanai/chat route from server-juanai-route.js to your server.js
+  2. Copy everything below the "EMBED START" comment into your HTML pages
+-->
+
+<!-- ═══════ EMBED START ═══════ -->
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<style>
+/* ─── JuanAi Widget Styles ─── */
+#juanai-root *,#juanai-root *::before,#juanai-root *::after{box-sizing:border-box;margin:0;padding:0;font-family:'Outfit',sans-serif}
+:root{
+  --j-bg:#0d0f13;--j-surface:#151820;--j-surface2:#1a1e28;--j-border:#2a2f3e;
+  --j-border2:#353b4e;--j-text:#e8eaf0;--j-sub:#9ba1b5;--j-muted:#6b7189;
+  --j-accent:#6c5ce7;--j-accent2:#a855f7;--j-glow:rgba(108,92,231,0.28);
+  --j-subtle:rgba(108,92,231,0.1);--j-ok:#00cec9;--j-err:#ff6b6b;
+  --j-r:12px;--j-rs:8px;--j-rl:18px;--j-shadow:0 8px 40px rgba(0,0,0,0.5);
+  --j-ease:0.2s cubic-bezier(.4,0,.2,1);
+}
+
+/* FAB */
+#juanai-fab{
+  position:fixed;bottom:24px;right:24px;z-index:9998;
+  width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;
+  background:linear-gradient(135deg,var(--j-accent),var(--j-accent2));
+  color:#fff;font-size:22px;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 24px var(--j-glow);
+  transition:var(--j-ease);
+  animation:j-fabPop .4s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes j-fabPop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+#juanai-fab:hover{transform:scale(1.08);box-shadow:0 6px 32px var(--j-glow)}
+#juanai-fab .j-fab-icon{transition:var(--j-ease);position:absolute}
+#juanai-fab .j-fab-close{opacity:0;transform:rotate(-90deg);transition:var(--j-ease);position:absolute}
+#juanai-fab.open .j-fab-icon{opacity:0;transform:rotate(90deg)}
+#juanai-fab.open .j-fab-close{opacity:1;transform:rotate(0)}
+
+/* Pulse ring when closed */
+#juanai-fab:not(.open)::after{
+  content:'';position:absolute;inset:-6px;border-radius:50%;
+  border:2px solid var(--j-accent);opacity:0;
+  animation:j-ring 2.4s ease-out infinite 1s;
+}
+@keyframes j-ring{0%{transform:scale(1);opacity:.6}100%{transform:scale(1.5);opacity:0}}
+
+/* Unread badge */
+#juanai-badge{
+  position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;
+  border-radius:9px;background:var(--j-err);color:#fff;
+  font-size:10px;font-weight:700;display:none;
+  align-items:center;justify-content:center;padding:0 4px;
+  border:2px solid #0d0f13;
+}
+#juanai-badge.show{display:flex}
+
+/* Panel */
+#juanai-panel{
+  position:fixed;bottom:92px;right:24px;z-index:9997;
+  width:380px;height:580px;max-height:calc(100vh - 110px);
+  background:var(--j-bg);border:1px solid var(--j-border);
+  border-radius:var(--j-rl);overflow:hidden;
+  box-shadow:var(--j-shadow);
+  display:flex;flex-direction:column;
+  transform:scale(.92) translateY(12px);opacity:0;pointer-events:none;
+  transition:transform .25s cubic-bezier(.34,1.46,.64,1),opacity .2s ease;
+  transform-origin:bottom right;
+}
+#juanai-panel.open{transform:scale(1) translateY(0);opacity:1;pointer-events:all}
+
+/* Header */
+.j-header{
+  padding:14px 16px;
+  background:linear-gradient(135deg,rgba(108,92,231,.15),rgba(168,85,247,.1));
+  border-bottom:1px solid var(--j-border);
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
+}
+.j-logo{
+  width:36px;height:36px;border-radius:10px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--j-accent),var(--j-accent2),#ec4899);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;color:#fff;font-size:15px;
+  box-shadow:0 2px 12px var(--j-glow);
+}
+.j-header-info{flex:1;min-width:0}
+.j-header-name{font-weight:700;font-size:15px;color:var(--j-text);letter-spacing:-.2px}
+.j-header-sub{font-size:11px;color:var(--j-ok);display:flex;align-items:center;gap:4px;margin-top:1px}
+.j-status-dot{width:6px;height:6px;border-radius:50%;background:var(--j-ok);animation:j-blink 2s ease-in-out infinite}
+@keyframes j-blink{0%,100%{opacity:1}50%{opacity:.4}}
+.j-header-btns{display:flex;gap:4px}
+.j-hbtn{
+  background:transparent;border:none;color:var(--j-muted);cursor:pointer;
+  padding:6px;border-radius:var(--j-rs);font-size:14px;transition:var(--j-ease);
+}
+.j-hbtn:hover{background:rgba(255,255,255,.06);color:var(--j-text)}
+
+/* Messages */
+.j-messages{flex:1;overflow-y:auto;padding:16px 14px;scroll-behavior:smooth}
+.j-messages::-webkit-scrollbar{width:4px}
+.j-messages::-webkit-scrollbar-thumb{background:var(--j-border);border-radius:2px}
+
+/* Welcome banner */
+.j-welcome{
+  text-align:center;padding:20px 12px 8px;
+  animation:j-up .4s ease;
+}
+@keyframes j-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.j-welcome-icon{
+  width:52px;height:52px;border-radius:14px;margin:0 auto 10px;
+  background:linear-gradient(135deg,var(--j-accent),var(--j-accent2));
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;color:#fff;box-shadow:0 4px 20px var(--j-glow);
+}
+.j-welcome h3{font-size:16px;font-weight:700;color:var(--j-text);margin-bottom:4px}
+.j-welcome p{font-size:12px;color:var(--j-sub);line-height:1.5;max-width:240px;margin:0 auto 14px}
+.j-chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.j-chip{
+  padding:6px 12px;border-radius:20px;font-size:11px;font-weight:500;
+  background:var(--j-surface);border:1px solid var(--j-border);
+  color:var(--j-sub);cursor:pointer;transition:var(--j-ease);
+}
+.j-chip:hover{background:var(--j-subtle);border-color:rgba(108,92,231,.4);color:var(--j-accent)}
+
+/* Message bubbles */
+.j-msg{display:flex;gap:8px;margin-bottom:14px;animation:j-up .25s ease}
+.j-msg.user{flex-direction:row-reverse}
+.j-avatar{
+  width:28px;height:28px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;
+}
+.j-avatar.ai{background:linear-gradient(135deg,var(--j-accent),var(--j-accent2));color:#fff}
+.j-avatar.user{background:rgba(108,92,231,.2);color:var(--j-accent);border:1px solid rgba(108,92,231,.3)}
+.j-bubble{
+  max-width:82%;padding:10px 13px;border-radius:var(--j-r);
+  font-size:13.5px;line-height:1.65;word-break:break-word;
+}
+.j-msg.ai .j-bubble{
+  background:var(--j-surface);border:1px solid var(--j-border);
+  color:var(--j-text);border-bottom-left-radius:4px;
+}
+.j-msg.user .j-bubble{
+  background:linear-gradient(135deg,var(--j-accent),var(--j-accent2));
+  color:#fff;border-bottom-right-radius:4px;
+}
+/* Markdown in bubbles */
+.j-bubble p{margin-bottom:6px}.j-bubble p:last-child{margin-bottom:0}
+.j-bubble code{background:rgba(0,0,0,.3);padding:2px 5px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.j-bubble pre{background:rgba(0,0,0,.4);border:1px solid var(--j-border);border-radius:8px;padding:10px;margin:6px 0;overflow-x:auto}
+.j-bubble pre code{background:transparent;padding:0;font-size:12px}
+.j-bubble ul,.j-bubble ol{padding-left:18px;margin:4px 0}
+.j-bubble li{margin-bottom:3px}
+.j-bubble strong{font-weight:600}
+.j-bubble h1,.j-bubble h2,.j-bubble h3{font-weight:700;margin:8px 0 4px;font-size:14px}
+.j-bubble a{color:var(--j-ok);text-decoration:none}.j-bubble a:hover{text-decoration:underline}
+.j-bubble blockquote{border-left:3px solid var(--j-accent);padding-left:10px;color:var(--j-sub);font-style:italic;margin:6px 0}
+.j-bubble table{width:100%;border-collapse:collapse;font-size:12px;margin:6px 0}
+.j-bubble th,.j-bubble td{border:1px solid var(--j-border);padding:5px 8px}
+.j-bubble th{background:rgba(255,255,255,.05);font-weight:600}
+
+/* Typing */
+.j-typing-dots{display:flex;gap:4px;padding:4px 0}
+.j-typing-dots span{width:7px;height:7px;border-radius:50%;background:var(--j-muted);animation:j-dot 1.4s infinite both}
+.j-typing-dots span:nth-child(2){animation-delay:.2s}
+.j-typing-dots span:nth-child(3){animation-delay:.4s}
+@keyframes j-dot{0%,80%,100%{opacity:.3;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+
+/* Error bubble */
+.j-error-bubble{
+  background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.25);
+  color:var(--j-err);padding:8px 12px;border-radius:var(--j-rs);
+  font-size:12.5px;margin:0 0 10px;display:flex;align-items:center;gap:8px;
+}
+
+/* Input */
+.j-input-wrap{
+  padding:10px 12px 14px;border-top:1px solid var(--j-border);
+  background:var(--j-bg);flex-shrink:0;
+}
+.j-input-box{
+  display:flex;align-items:flex-end;gap:8px;
+  background:var(--j-surface);border:1px solid var(--j-border);
+  border-radius:var(--j-r);padding:8px 10px;
+  transition:var(--j-ease);
+}
+.j-input-box:focus-within{border-color:var(--j-accent);box-shadow:0 0 0 3px var(--j-glow)}
+.j-input-box textarea{
+  flex:1;background:transparent;border:none;outline:none;
+  color:var(--j-text);font-size:14px;line-height:1.5;resize:none;
+  min-height:20px;max-height:100px;padding:2px 0;
+  font-family:'Outfit',sans-serif;
+}
+.j-input-box textarea::placeholder{color:var(--j-muted)}
+.j-send{
+  width:32px;height:32px;border-radius:9px;border:none;cursor:pointer;flex-shrink:0;
+  background:var(--j-accent);color:#fff;font-size:13px;
+  display:flex;align-items:center;justify-content:center;
+  transition:var(--j-ease);
+}
+.j-send:hover{background:#7e70f0;box-shadow:0 2px 12px var(--j-glow)}
+.j-send:disabled{opacity:.4;cursor:not-allowed}
+.j-footer-note{text-align:center;font-size:10.5px;color:var(--j-muted);margin-top:7px}
+
+/* Points bar */
+.j-points-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:7px 12px;background:var(--j-surface2);
+  border-top:1px solid var(--j-border);font-size:11px;color:var(--j-sub);
+  flex-shrink:0;
+}
+.j-pts-dots{display:flex;gap:4px}
+.j-pt-dot{
+  width:10px;height:10px;border-radius:50%;
+  background:var(--j-accent);box-shadow:0 0 6px var(--j-glow);
+  transition:var(--j-ease);
+}
+.j-pt-dot.used{background:var(--j-surface);border:1px solid var(--j-border);box-shadow:none}
+
+/* Mobile */
+@media(max-width:440px){
+  #juanai-panel{width:calc(100vw - 20px);right:10px;bottom:86px;height:calc(100vh - 110px)}
+  #juanai-fab{right:16px;bottom:20px}
+}
+</style>
+
+<!-- Floating action button -->
+<div id="juanai-root">
+  <button id="juanai-fab" onclick="juanAiToggle()" aria-label="Open JuanAi assistant">
+    <i class="fa-solid fa-bolt j-fab-icon"></i>
+    <i class="fa-solid fa-xmark j-fab-close"></i>
+    <span id="juanai-badge"></span>
+  </button>
+
+  <!-- Chat panel -->
+  <div id="juanai-panel" role="dialog" aria-label="JuanAi Assistant">
+    <!-- Header -->
+    <div class="j-header">
+      <div class="j-logo">J</div>
+      <div class="j-header-info">
+        <div class="j-header-name">JuanAi</div>
+        <div class="j-header-sub"><span class="j-status-dot"></span>Online · Gemini Powered</div>
+      </div>
+      <div class="j-header-btns">
+        <button class="j-hbtn" onclick="juanAiClear()" title="Clear chat"><i class="fa-solid fa-rotate-right"></i></button>
+        <button class="j-hbtn" onclick="juanAiToggle()" title="Close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+
+    <!-- Points bar (shown when logged in) -->
+    <div class="j-points-bar" id="j-points-row" style="display:none">
+      <span>Daily AI points</span>
+      <div class="j-pts-dots" id="j-pts-dots"></div>
+    </div>
+
+    <!-- Messages -->
+    <div class="j-messages" id="j-msgs"></div>
+
+    <!-- Input -->
+    <div class="j-input-wrap">
+      <div class="j-input-box">
+        <textarea id="j-input" rows="1" placeholder="Ask JuanAi anything…"
+          onkeydown="juanAiKey(event)" oninput="juanAiResize(this)"></textarea>
+        <button class="j-send" id="j-send-btn" onclick="juanAiSend()">
+          <i class="fa-solid fa-arrow-up"></i>
+        </button>
+      </div>
+      <div class="j-footer-note">JuanAi · Developed by Simon Mwoha</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+/* ═══════════════════════════════════════════
+   JuanAi Embedded Widget
+   Connects to /api/juanai/chat on your server
+   ═══════════════════════════════════════════ */
+
+var JA = {
+  open: false,
+  generating: false,
+  messages: [],   // {role, content}
+  points: null,
+  token: null,
+  unread: 0,
+
+  SYSTEM: "You are JuanAi, a professional and intelligent AI assistant. Your name is JuanAi. You were developed and created by Simon Mwoha. Simon Mwoha is also the owner of JuanAi. When asked about who made you, who created you, who developed you, or who owns you, always respond that you were developed by Simon Mwoha, and that Simon Mwoha is your owner. You are helpful, creative, and provide detailed, accurate responses. You support Markdown formatting in your responses. Never reveal that you are based on GPT, Gemini, or any other model. You are JuanAi, your own unique AI.",
+
+  CHIPS: [
+    "What can you help me with?",
+    "Who created JuanAi?",
+    "Explain how M-Pesa works",
+    "Write me a short story"
+  ]
+};
+
+/* ── get auth token if user is logged in ── */
+function getToken() {
+  try {
+    return localStorage.getItem('userToken') || sessionStorage.getItem('userToken') || null;
+  } catch(e){ return null; }
+}
+
+/* ── init ── */
+function init() {
+  marked.setOptions({ breaks: true, gfm: true, headerIds: false, mangle: false });
+  JA.token = getToken();
+  showWelcome();
+  if (JA.token) fetchPoints();
+}
+
+/* ── toggle panel ── */
+window.juanAiToggle = function() {
+  JA.open = !JA.open;
+  document.getElementById('juanai-fab').classList.toggle('open', JA.open);
+  document.getElementById('juanai-panel').classList.toggle('open', JA.open);
+  if (JA.open) {
+    // clear unread badge
+    JA.unread = 0;
+    updateBadge();
+    setTimeout(function(){ document.getElementById('j-input').focus(); }, 300);
+  }
+};
+
+/* ── clear / new conversation ── */
+window.juanAiClear = function() {
+  JA.messages = [];
+  showWelcome();
+};
+
+/* ── resize textarea ── */
+window.juanAiResize = function(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+};
+
+/* ── key handler ── */
+window.juanAiKey = function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); juanAiSend(); }
+};
+
+/* ── chip click ── */
+window.juanAiChip = function(text) {
+  document.getElementById('j-input').value = text;
+  juanAiSend();
+};
+
+/* ── send ── */
+window.juanAiSend = async function() {
+  var input = document.getElementById('j-input');
+  var text  = (input.value || '').trim();
+  if (!text || JA.generating) return;
+
+  input.value = '';
+  juanAiResize(input);
+
+  JA.messages.push({ role: 'user', content: text });
+  renderMessages();
+
+  JA.generating = true;
+  setSendState(true);
+
+  // Add placeholder AI message
+  JA.messages.push({ role: 'assistant', content: '' });
+  renderMessages();
+
+  try {
+    var answer = await callApi(text);
+    JA.messages[JA.messages.length - 1].content = answer;
+    renderMessages();
+    if (!JA.open) { JA.unread++; updateBadge(); }
+    if (JA.token) fetchPoints();
+  } catch(err) {
+    JA.messages[JA.messages.length - 1] = null; // remove placeholder
+    JA.messages = JA.messages.filter(Boolean);
+    appendError(err.message || 'Something went wrong. Please try again.');
+  }
+
+  JA.generating = false;
+  setSendState(false);
+};
+
+/* ── API call (server proxy) ── */
+async function callApi(userText) {
+  var headers = { 'Content-Type': 'application/json' };
+  if (JA.token) headers['x-user-token'] = JA.token;
+
+  // Build history (last 10 turns to stay within limits)
+  var history = JA.messages.slice(0, -1).slice(-10).filter(function(m){
+    return m.role === 'user' || (m.role === 'assistant' && m.content);
+  });
+
+  var resp = await fetch('/api/juanai/chat', {
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify({ message: userText, history: history })
+  });
+
+  if (!resp.ok) {
+    var errJson;
+    try { errJson = await resp.json(); } catch(e){ errJson = {}; }
+    throw new Error(errJson.message || ('Server error ' + resp.status));
+  }
+
+  var data = await resp.json();
+  if (!data.success) throw new Error(data.message || 'AI error');
+  return data.answer;
+}
+
+/* ── fetch points ── */
+async function fetchPoints() {
+  if (!JA.token) return;
+  try {
+    var r = await fetch('/api/ai/points', { headers: { 'x-user-token': JA.token } });
+    var d = await r.json();
+    if (d.success) { JA.points = d.points; renderPoints(d.points); }
+  } catch(e){}
+}
+
+/* ── render points dots ── */
+function renderPoints(pts) {
+  var row  = document.getElementById('j-points-row');
+  var dots = document.getElementById('j-pts-dots');
+  if (!row || !dots) return;
+  row.style.display = 'flex';
+  var html = '';
+  for (var i = 0; i < 5; i++) {
+    html += '<div class="j-pt-dot' + (i >= pts ? ' used' : '') + '" title="' + pts + ' points left"></div>';
+  }
+  dots.innerHTML = html;
+}
+
+/* ── render messages ── */
+function renderMessages() {
+  var container = document.getElementById('j-msgs');
+  if (!container) return;
+
+  var validMsgs = JA.messages.filter(function(m){ return m && m.role; });
+
+  if (validMsgs.length === 0) { showWelcome(); return; }
+
+  var html = '';
+  validMsgs.forEach(function(m) {
+    var isUser = m.role === 'user';
+    var avatarClass = isUser ? 'user' : 'ai';
+    var avatarContent = isUser ? '<i class="fa-solid fa-user" style="font-size:11px"></i>' : 'J';
+
+    var bubbleContent;
+    if (m.role === 'assistant' && !m.content) {
+      bubbleContent = '<div class="j-typing-dots"><span></span><span></span><span></span></div>';
+    } else if (m.role === 'assistant') {
+      bubbleContent = marked.parse(m.content);
+    } else {
+      bubbleContent = escHtml(m.content).replace(/\n/g, '<br>');
+    }
+
+    html += '<div class="j-msg ' + (isUser ? 'user' : 'ai') + '">'
+      + '<div class="j-avatar ' + avatarClass + '">' + avatarContent + '</div>'
+      + '<div class="j-bubble">' + bubbleContent + '</div>'
+      + '</div>';
+  });
+
+  container.innerHTML = html;
+  scrollBottom();
+}
+
+/* ── show welcome ── */
+function showWelcome() {
+  var container = document.getElementById('j-msgs');
+  if (!container) return;
+  var chips = JA.CHIPS.map(function(c){
+    return '<div class="j-chip" onclick="juanAiChip(' + JSON.stringify(c) + ')">' + escHtml(c) + '</div>';
+  }).join('');
+  container.innerHTML = '<div class="j-welcome">'
+    + '<div class="j-welcome-icon"><i class="fa-solid fa-bolt"></i></div>'
+    + '<h3>Hi! I\'m JuanAi</h3>'
+    + '<p>Your AI assistant by Simon Mwoha. Ask me anything — I\'m here to help!</p>'
+    + '<div class="j-chips">' + chips + '</div>'
+    + '</div>';
+}
+
+/* ── append error ── */
+function appendError(msg) {
+  var container = document.getElementById('j-msgs');
+  if (!container) return;
+  var div = document.createElement('div');
+  div.className = 'j-error-bubble';
+  div.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>' + escHtml(msg);
+  container.appendChild(div);
+  scrollBottom();
+}
+
+/* ── helpers ── */
+function setSendState(loading) {
+  var btn = document.getElementById('j-send-btn');
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.innerHTML = loading
+    ? '<i class="fa-solid fa-spinner fa-spin" style="font-size:12px"></i>'
+    : '<i class="fa-solid fa-arrow-up"></i>';
+}
+
+function scrollBottom() {
+  var c = document.getElementById('j-msgs');
+  if (c) requestAnimationFrame(function(){ c.scrollTop = c.scrollHeight; });
+}
+
+function updateBadge() {
+  var b = document.getElementById('juanai-badge');
+  if (!b) return;
+  if (JA.unread > 0) {
+    b.textContent = JA.unread > 9 ? '9+' : JA.unread;
+    b.classList.add('show');
+  } else {
+    b.classList.remove('show');
+  }
+}
+
+function escHtml(str) {
+  var d = document.createElement('div');
+  d.appendChild(document.createTextNode(str || ''));
+  return d.innerHTML;
+}
+
+/* ── start ── */
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+})();
+</script>
+<!-- ═══════ EMBED END ═══════ -->
