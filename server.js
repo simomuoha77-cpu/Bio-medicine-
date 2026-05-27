@@ -18,6 +18,7 @@ const app        = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
+app.get("/xadmin.html", (req, res) => res.status(404).send("Not found"));
 app.use("/uploads", express.static("uploads"));
 
 const PORT = process.env.PORT || 3000;
@@ -185,7 +186,10 @@ async function logActivity(type, message, userId = null, details = {}) {
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com", port: 587, secure: false,
   auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-  tls: { rejectUnauthorized: false }
+  tls: { rejectUnauthorized: false },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000
 });
 
 // ============================
@@ -499,7 +503,7 @@ app.get("/api/ai/history", userAuth, async (req, res) => {
 // ============================
 // ADMIN AUTH
 // ============================
-app.post("/api/xadmin/auth", async (req, res) => {
+app.post("/api/mbx9k/auth", async (req, res) => {
   const { email, password, secretKey } = req.body;
 
   if (secretKey !== (process.env.ADMIN_SECRET || "MASTERBIOMEDS_ADMIN_2024"))
@@ -522,7 +526,7 @@ app.post("/api/xadmin/auth", async (req, res) => {
 // ============================
 // ADMIN ROUTES
 // ============================
-app.get("/api/xadmin/stats", adminAuth, async (req, res) => {
+app.get("/api/mbx9k/stats", adminAuth, async (req, res) => {
   const [totalPdfs, totalUsers, activeUsers, totalCats] = await Promise.all([
     PDF.countDocuments(), User.countDocuments(),
     User.countDocuments({ status: "active" }), Category.countDocuments()
@@ -540,7 +544,7 @@ app.get("/api/xadmin/stats", adminAuth, async (req, res) => {
   }});
 });
 
-app.get("/api/xadmin/logs", adminAuth, async (req, res) => {
+app.get("/api/mbx9k/logs", adminAuth, async (req, res) => {
   const { limit = 100, type } = req.query;
   const query = type ? { type } : {};
   const logs  = await ActivityLog.find(query).sort({ timestamp: -1 }).limit(parseInt(limit));
@@ -548,7 +552,7 @@ app.get("/api/xadmin/logs", adminAuth, async (req, res) => {
 });
 
 // ---- PDF MANAGEMENT ----
-app.post("/api/xadmin/pdfs",
+app.post("/api/mbx9k/pdfs",
   adminAuth,
   uploadFields.fields([{ name: "pdf", maxCount: 1 }, { name: "thumbnail", maxCount: 1 }]),
   async (req, res) => {
@@ -572,7 +576,7 @@ app.post("/api/xadmin/pdfs",
   }
 );
 
-app.get("/api/xadmin/pdfs", adminAuth, async (req, res) => {
+app.get("/api/mbx9k/pdfs", adminAuth, async (req, res) => {
   const { category, search, access } = req.query;
   const query = {};
   if (category) query.category = category;
@@ -582,7 +586,7 @@ app.get("/api/xadmin/pdfs", adminAuth, async (req, res) => {
   res.json({ success: true, pdfs, total: pdfs.length });
 });
 
-app.put("/api/xadmin/pdfs/:id",
+app.put("/api/mbx9k/pdfs/:id",
   adminAuth,
   uploadFields.fields([{ name: "thumbnail", maxCount: 1 }]),
   async (req, res) => {
@@ -605,7 +609,7 @@ app.put("/api/xadmin/pdfs/:id",
   }
 );
 
-app.delete("/api/xadmin/pdfs/:id", adminAuth, async (req, res) => {
+app.delete("/api/mbx9k/pdfs/:id", adminAuth, async (req, res) => {
   const pdf = await PDF.findByIdAndDelete(req.params.id);
   if (!pdf) return res.json({ success: false, message: "PDF not found" });
   const fp = path.join(process.cwd(), "uploads/pdfs", pdf.filename);
@@ -618,7 +622,7 @@ app.delete("/api/xadmin/pdfs/:id", adminAuth, async (req, res) => {
   res.json({ success: true, message: "PDF deleted" });
 });
 
-app.post("/api/xadmin/pdfs/bulk", adminAuth, uploadBulk.array("pdfs", 20), async (req, res) => {
+app.post("/api/mbx9k/pdfs/bulk", adminAuth, uploadBulk.array("pdfs", 20), async (req, res) => {
   if (!req.files?.length) return res.json({ success: false, message: "No files selected" });
   const { category = "", access = "public" } = req.body;
   const uploaded = [];
@@ -636,46 +640,46 @@ app.post("/api/xadmin/pdfs/bulk", adminAuth, uploadBulk.array("pdfs", 20), async
 });
 
 // ---- CATEGORIES ----
-app.get("/api/xadmin/categories", adminAuth, async (req, res) => {
+app.get("/api/mbx9k/categories", adminAuth, async (req, res) => {
   const cats = await Category.find().sort({ name: 1 });
   res.json({ success: true, categories: cats });
 });
-app.post("/api/xadmin/categories", adminAuth, async (req, res) => {
+app.post("/api/mbx9k/categories", adminAuth, async (req, res) => {
   const { name, department } = req.body;
   if (!name) return res.json({ success: false, message: "Name required" });
   const cat = await Category.create({ name, department: department || name });
   res.json({ success: true, category: cat });
 });
-app.delete("/api/xadmin/categories/:id", adminAuth, async (req, res) => {
+app.delete("/api/mbx9k/categories/:id", adminAuth, async (req, res) => {
   await Category.findByIdAndDelete(req.params.id);
   res.json({ success: true, message: "Category deleted" });
 });
 
 // ---- USERS ----
-app.get("/api/xadmin/users", adminAuth, async (req, res) => {
+app.get("/api/mbx9k/users", adminAuth, async (req, res) => {
   const users = await User.find().select("-password").sort({ createdAt: -1 });
   res.json({ success: true, users, total: users.length });
 });
-app.put("/api/xadmin/users/:id/suspend", adminAuth, async (req, res) => {
+app.put("/api/mbx9k/users/:id/suspend", adminAuth, async (req, res) => {
   await User.findByIdAndUpdate(req.params.id, { status: "suspended" });
   await logActivity("suspend_user", `Suspended: ${req.params.id}`, "admin001");
   res.json({ success: true, message: "User suspended" });
 });
-app.put("/api/xadmin/users/:id/activate", adminAuth, async (req, res) => {
+app.put("/api/mbx9k/users/:id/activate", adminAuth, async (req, res) => {
   await User.findByIdAndUpdate(req.params.id, { status: "active" });
   res.json({ success: true, message: "User activated" });
 });
-app.delete("/api/xadmin/users/:id", adminAuth, async (req, res) => {
+app.delete("/api/mbx9k/users/:id", adminAuth, async (req, res) => {
   const user = await User.findByIdAndDelete(req.params.id);
   if (!user) return res.json({ success: false, message: "Not found" });
   await logActivity("delete_user", `Deleted: ${user.email}`, "admin001");
   res.json({ success: true, message: "User deleted" });
 });
-app.put("/api/xadmin/users/:id/promote", adminAuth, async (req, res) => {
+app.put("/api/mbx9k/users/:id/promote", adminAuth, async (req, res) => {
   await User.findByIdAndUpdate(req.params.id, { role: "moderator" });
   res.json({ success: true, message: "Promoted to moderator" });
 });
-app.put("/api/xadmin/users/:id/resetpoints", adminAuth, async (req, res) => {
+app.put("/api/mbx9k/users/:id/resetpoints", adminAuth, async (req, res) => {
   await User.findByIdAndUpdate(req.params.id, {
     aiPoints: 5, aiPointsResetAt: new Date(Date.now() + 24*60*60*1000)
   });
@@ -684,7 +688,7 @@ app.put("/api/xadmin/users/:id/resetpoints", adminAuth, async (req, res) => {
 });
 
 // ---- NOTIFICATIONS ----
-app.post("/api/xadmin/notifications", adminAuth, async (req, res) => {
+app.post("/api/mbx9k/notifications", adminAuth, async (req, res) => {
   const { title, message, type = "announcement", sendEmail } = req.body;
   if (!title || !message) return res.json({ success: false, message: "Required" });
   const userCount = await User.countDocuments();
@@ -702,13 +706,13 @@ app.post("/api/xadmin/notifications", adminAuth, async (req, res) => {
   await logActivity("notification", `Notif: ${title}`, "admin001");
   res.json({ success: true, notification: notif });
 });
-app.get("/api/xadmin/notifications", adminAuth, async (req, res) => {
+app.get("/api/mbx9k/notifications", adminAuth, async (req, res) => {
   const notifs = await Notification.find().sort({ sentAt: -1 }).limit(50);
   res.json({ success: true, notifications: notifs });
 });
 
 // ---- ANALYTICS ----
-app.get("/api/xadmin/analytics", adminAuth, async (req, res) => {
+app.get("/api/mbx9k/analytics", adminAuth, async (req, res) => {
   const topDownloaded = await PDF.find().sort({ downloads: -1 }).limit(10);
   const cats          = await Category.find();
   const storageAgg    = await PDF.aggregate([{ $group: { _id: null, total: { $sum: "$fileSize" } } }]);
@@ -735,7 +739,7 @@ app.get("/api/xadmin/analytics", adminAuth, async (req, res) => {
 // ============================
 // ADMIN SETTINGS ROUTES
 // ============================
-app.get("/api/xadmin/settings", adminAuth, async (req, res) => {
+app.get("/api/mbx9k/settings", adminAuth, async (req, res) => {
   try {
     const settings = await Settings.find();
     const obj = {};
@@ -750,7 +754,7 @@ app.get("/api/xadmin/settings", adminAuth, async (req, res) => {
   } catch (err) { res.json({ success: false, message: err.message }); }
 });
 
-app.post("/api/xadmin/settings/gemini-key", adminAuth, async (req, res) => {
+app.post("/api/mbx9k/settings/gemini-key", adminAuth, async (req, res) => {
   const { apiKey } = req.body;
   if (!apiKey || apiKey.trim().length < 10)
     return res.json({ success: false, message: "Please enter a valid Gemini API key" });
@@ -765,7 +769,7 @@ app.post("/api/xadmin/settings/gemini-key", adminAuth, async (req, res) => {
   } catch (err) { res.json({ success: false, message: err.message }); }
 });
 
-app.post("/api/xadmin/settings/change-password", adminAuth, async (req, res) => {
+app.post("/api/mbx9k/settings/change-password", adminAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword)
     return res.json({ success: false, message: "Both fields required" });
@@ -786,7 +790,7 @@ app.post("/api/xadmin/settings/change-password", adminAuth, async (req, res) => 
   } catch (err) { res.json({ success: false, message: err.message }); }
 });
 
-app.post("/api/xadmin/settings/ai-points", adminAuth, async (req, res) => {
+app.post("/api/mbx9k/settings/ai-points", adminAuth, async (req, res) => {
   const { points } = req.body;
   if (!points || points < 1 || points > 100)
     return res.json({ success: false, message: "Points must be between 1 and 100" });

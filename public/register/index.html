@@ -31,12 +31,8 @@ body{
 .logo h1{font-size:22px;font-weight:700;color:#00d9ff;margin-bottom:6px;}
 .logo p{font-size:13px;color:#5a7a8a;}
 
-/* STEPS */
 .steps{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:28px;}
-.step{
-  display:flex;align-items:center;gap:6px;
-  font-size:12px;color:#5a7a8a;font-weight:500;
-}
+.step{display:flex;align-items:center;gap:6px;font-size:12px;color:#5a7a8a;font-weight:500;}
 .step-num{
   width:24px;height:24px;border-radius:50%;
   background:#111d29;border:1px solid rgba(0,217,255,0.15);
@@ -56,7 +52,6 @@ body{
 }
 .field input:focus{border-color:rgba(0,217,255,0.3);}
 
-/* CODE INPUT */
 .code-inputs{display:flex;gap:10px;justify-content:center;margin:20px 0;}
 .code-inputs input{
   width:48px;height:56px;text-align:center;font-size:22px;font-weight:700;
@@ -71,9 +66,33 @@ body{
   background:linear-gradient(135deg,#00d9ff,#0066ff);
   border:none;border-radius:10px;color:#000;font-family:'Sora',sans-serif;
   font-size:14px;font-weight:700;cursor:pointer;transition:opacity .2s;margin-top:4px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
 }
 .btn-submit:hover{opacity:.88;}
 .btn-submit:disabled{opacity:.5;cursor:not-allowed;}
+
+/* Spinner inside button */
+.spin{
+  width:16px;height:16px;border:2px solid rgba(0,0,0,0.3);
+  border-top-color:#000;border-radius:50%;
+  animation:sp .7s linear infinite;display:inline-block;
+}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* Loading overlay for slow email sending */
+.sending-overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(7,16,24,0.88);z-index:999;
+  align-items:center;justify-content:center;flex-direction:column;gap:16px;
+}
+.sending-overlay.show{display:flex;}
+.sending-spinner{
+  width:48px;height:48px;border:3px solid rgba(0,217,255,0.15);
+  border-top-color:#00d9ff;border-radius:50%;
+  animation:sp .8s linear infinite;
+}
+.sending-overlay p{font-size:14px;color:#00d9ff;font-weight:600;}
+.sending-overlay small{font-size:12px;color:#5a7a8a;text-align:center;max-width:260px;line-height:1.6;}
 
 .msg{
   text-align:center;font-size:13px;margin-top:12px;
@@ -92,10 +111,27 @@ body{
   margin-bottom:16px;line-height:1.6;
 }
 .email-hint span{color:#00d9ff;font-weight:600;}
+
+/* Timeout notice */
+.timeout-notice{
+  display:none;
+  background:rgba(255,159,67,0.08);border:1px solid rgba(255,159,67,0.2);
+  border-radius:10px;padding:14px;margin-top:14px;
+  font-size:12px;color:#ff9f43;line-height:1.7;text-align:center;
+}
+.timeout-notice.show{display:block;}
+.timeout-notice strong{display:block;margin-bottom:4px;font-size:13px;}
 </style>
 </head>
 <body>
 <div class="bg"></div>
+
+<!-- Sending overlay (shown while waiting for email) -->
+<div class="sending-overlay" id="sending-overlay">
+  <div class="sending-spinner"></div>
+  <p>Sending verification code...</p>
+  <small>This may take up to 20 seconds on free hosting. Please wait.</small>
+</div>
 
 <div class="box">
   <div class="logo">
@@ -103,25 +139,15 @@ body{
     <p>Create your account</p>
   </div>
 
-  <!-- STEPS -->
   <div class="steps">
-    <div class="step active" id="step1">
-      <div class="step-num">1</div>
-      <span>Details</span>
-    </div>
+    <div class="step active" id="step1"><div class="step-num">1</div><span>Details</span></div>
     <div class="step-line"></div>
-    <div class="step" id="step2">
-      <div class="step-num">2</div>
-      <span>Verify</span>
-    </div>
+    <div class="step" id="step2"><div class="step-num">2</div><span>Verify</span></div>
     <div class="step-line"></div>
-    <div class="step" id="step3">
-      <div class="step-num">3</div>
-      <span>Done</span>
-    </div>
+    <div class="step" id="step3"><div class="step-num">3</div><span>Done</span></div>
   </div>
 
-  <!-- STEP 1 — Register Form -->
+  <!-- STEP 1 -->
   <div id="form-register">
     <div class="field">
       <label>Full Name</label>
@@ -143,33 +169,45 @@ body{
       <i class="fa-solid fa-user-plus"></i> Create Account
     </button>
     <div class="msg" id="reg-msg"></div>
+
+    <!-- Shown if email takes too long -->
+    <div class="timeout-notice" id="timeout-notice">
+      <strong>⚠️ Taking longer than expected</strong>
+      The server is waking up (free hosting). Your code is still being sent —
+      check your email in a moment and enter it below.
+      <br><br>
+      <button class="btn-submit" onclick="forceShowVerify()" style="margin-top:4px;font-size:13px;padding:10px;">
+        <i class="fa-solid fa-envelope"></i> I received the code — Continue
+      </button>
+    </div>
+
     <div class="bottom">Already have an account? <a href="/login.html">Login here</a></div>
   </div>
 
-  <!-- STEP 2 — Verify Code -->
+  <!-- STEP 2 -->
   <div id="form-verify" style="display:none;">
     <div class="email-hint">
       We sent a 6-digit code to<br>
       <span id="verify-email-show"></span>
     </div>
     <div class="code-inputs">
-      <input type="text" maxlength="1" id="c1" oninput="codeMove(this,'c2')" onkeydown="codeBack(event,this,null)">
-      <input type="text" maxlength="1" id="c2" oninput="codeMove(this,'c3')" onkeydown="codeBack(event,this,'c1')">
-      <input type="text" maxlength="1" id="c3" oninput="codeMove(this,'c4')" onkeydown="codeBack(event,this,'c2')">
-      <input type="text" maxlength="1" id="c4" oninput="codeMove(this,'c5')" onkeydown="codeBack(event,this,'c3')">
-      <input type="text" maxlength="1" id="c5" oninput="codeMove(this,'c6')" onkeydown="codeBack(event,this,'c4')">
-      <input type="text" maxlength="1" id="c6" oninput="codeMove(this,null)"  onkeydown="codeBack(event,this,'c5')">
+      <input type="text" inputmode="numeric" maxlength="1" id="c1" oninput="codeMove(this,'c2')" onkeydown="codeBack(event,this,null)">
+      <input type="text" inputmode="numeric" maxlength="1" id="c2" oninput="codeMove(this,'c3')" onkeydown="codeBack(event,this,'c1')">
+      <input type="text" inputmode="numeric" maxlength="1" id="c3" oninput="codeMove(this,'c4')" onkeydown="codeBack(event,this,'c2')">
+      <input type="text" inputmode="numeric" maxlength="1" id="c4" oninput="codeMove(this,'c5')" onkeydown="codeBack(event,this,'c3')">
+      <input type="text" inputmode="numeric" maxlength="1" id="c5" oninput="codeMove(this,'c6')" onkeydown="codeBack(event,this,'c4')">
+      <input type="text" inputmode="numeric" maxlength="1" id="c6" oninput="codeMove(this,null)"  onkeydown="codeBack(event,this,'c5')">
     </div>
     <button class="btn-submit" id="verify-btn" onclick="doVerify()">
       <i class="fa-solid fa-check-circle"></i> Verify Code
     </button>
     <div class="msg" id="verify-msg"></div>
     <div class="bottom" style="margin-top:14px;">
-      <a href="#" onclick="resendCode()">Resend code</a>
+      Didn't get it? <a href="#" onclick="resendCode(event)">Resend code</a>
     </div>
   </div>
 
-  <!-- STEP 3 — Success -->
+  <!-- STEP 3 -->
   <div id="form-done" style="display:none;text-align:center;padding:20px 0;">
     <i class="fa-solid fa-circle-check" style="font-size:56px;color:#00ff88;margin-bottom:16px;display:block;"></i>
     <h2 style="font-size:20px;font-weight:700;margin-bottom:8px;">Account Created!</h2>
@@ -178,13 +216,12 @@ body{
       <button class="btn-submit"><i class="fa-solid fa-right-to-bracket"></i> Go to Login</button>
     </a>
   </div>
-
 </div>
 
 <script>
 let registeredEmail = "";
+let registerTimeout = null;
 
-// If already logged in
 if (localStorage.getItem("biomeds_token")) {
   window.location.href = "/dashboard.html";
 }
@@ -198,50 +235,93 @@ async function doRegister() {
   const btn      = document.getElementById("reg-btn");
 
   hideMsg("reg-msg");
+  document.getElementById("timeout-notice").classList.remove("show");
 
   if (!username || !email || !password || !pass2) {
-    showMsg("reg-msg", "All fields are required", "error"); return;
+    showMsg("reg-msg","All fields are required","error"); return;
   }
   if (password.length < 6) {
-    showMsg("reg-msg", "Password must be at least 6 characters", "error"); return;
+    showMsg("reg-msg","Password must be at least 6 characters","error"); return;
   }
   if (password !== pass2) {
-    showMsg("reg-msg", "Passwords do not match", "error"); return;
+    showMsg("reg-msg","Passwords do not match","error"); return;
   }
 
-  btn.disabled   = true;
-  btn.textContent = "Sending code...";
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Sending code...';
+
+  // Show full-screen overlay
+  document.getElementById("sending-overlay").classList.add("show");
+  registeredEmail = email;
+
+  // After 10s show timeout notice (server still working)
+  registerTimeout = setTimeout(() => {
+    document.getElementById("sending-overlay").classList.remove("show");
+    document.getElementById("timeout-notice").classList.add("show");
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Account';
+    document.getElementById("verify-email-show").textContent = email;
+  }, 10000);
 
   try {
+    const controller = new AbortController();
+    // 25s hard timeout on fetch
+    const fetchTimeout = setTimeout(() => controller.abort(), 25000);
+
     const res  = await fetch("/register", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ username, email, password })
+      body:    JSON.stringify({ username, email, password }),
+      signal:  controller.signal
     });
+    clearTimeout(fetchTimeout);
+    clearTimeout(registerTimeout);
+
     const data = await res.json();
+    document.getElementById("sending-overlay").classList.remove("show");
 
     if (data.success) {
-      registeredEmail = email;
-      document.getElementById("verify-email-show").textContent = email;
-      // Switch to step 2
-      document.getElementById("form-register").style.display = "none";
-      document.getElementById("form-verify").style.display   = "block";
-      // Update steps
-      document.getElementById("step1").classList.remove("active");
-      document.getElementById("step1").classList.add("done");
-      document.getElementById("step2").classList.add("active");
-      document.getElementById("c1").focus();
+      goToVerify(email);
     } else {
       showMsg("reg-msg", data.message || "Registration failed", "error");
-      btn.disabled    = false;
-      btn.innerHTML   = '<i class="fa-solid fa-user-plus"></i> Create Account';
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Account';
     }
-  } catch {
-    showMsg("reg-msg", "Connection error. Is the server running?", "error");
-    btn.disabled    = false;
-    btn.innerHTML   = '<i class="fa-solid fa-user-plus"></i> Create Account';
+  } catch(err) {
+    clearTimeout(registerTimeout);
+    document.getElementById("sending-overlay").classList.remove("show");
+
+    if (err.name === "AbortError") {
+      // Request timed out — server may still be processing
+      // Show verify screen anyway (code might arrive)
+      document.getElementById("timeout-notice").classList.add("show");
+      document.getElementById("verify-email-show").textContent = email;
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Account';
+    } else {
+      showMsg("reg-msg","Connection error. Please try again.","error");
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Account';
+    }
   }
 }
+
+function goToVerify(email) {
+  registeredEmail = email;
+  document.getElementById("verify-email-show").textContent = email;
+  document.getElementById("form-register").style.display = "none";
+  document.getElementById("form-verify").style.display   = "block";
+  document.getElementById("timeout-notice").classList.remove("show");
+  document.getElementById("step1").classList.remove("active");
+  document.getElementById("step1").classList.add("done");
+  document.getElementById("step2").classList.add("active");
+  setTimeout(() => document.getElementById("c1").focus(), 100);
+}
+
+// Called from "I received the code" button
+window.forceShowVerify = function() {
+  goToVerify(registeredEmail);
+};
 
 // ── VERIFY ──
 async function doVerify() {
@@ -251,11 +331,11 @@ async function doVerify() {
   hideMsg("verify-msg");
 
   if (code.length < 6) {
-    showMsg("verify-msg", "Enter the full 6-digit code", "error"); return;
+    showMsg("verify-msg","Enter the full 6-digit code","error"); return;
   }
 
-  btn.disabled    = true;
-  btn.textContent = "Verifying...";
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Verifying...';
 
   try {
     const res  = await fetch("/verify", {
@@ -266,59 +346,72 @@ async function doVerify() {
     const data = await res.json();
 
     if (data.success) {
-      // Update steps
       document.getElementById("step2").classList.remove("active");
       document.getElementById("step2").classList.add("done");
       document.getElementById("step3").classList.add("active");
-      // Show done screen
       document.getElementById("form-verify").style.display = "none";
       document.getElementById("form-done").style.display   = "block";
-      // Auto redirect to login after 2.5s
       setTimeout(() => { window.location.href = "/login.html"; }, 2500);
     } else {
-      showMsg("verify-msg", data.message || "Invalid code", "error");
+      showMsg("verify-msg", data.message || "Invalid code. Try again.", "error");
       btn.disabled  = false;
       btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Verify Code';
+      // Clear code boxes
+      ["c1","c2","c3","c4","c5","c6"].forEach(id => document.getElementById(id).value = "");
+      document.getElementById("c1").focus();
     }
   } catch {
-    showMsg("verify-msg", "Connection error", "error");
+    showMsg("verify-msg","Connection error","error");
     btn.disabled  = false;
     btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Verify Code';
   }
 }
 
-async function resendCode() {
-  showMsg("verify-msg", "Resending code...", "info");
-  // Just re-trigger — user needs to go back and register again
-  // Or you can add a resend endpoint
-  showMsg("verify-msg", "Please go back and register again to get a new code", "info");
+async function resendCode(e) {
+  if (e) e.preventDefault();
+  if (!registeredEmail) {
+    showMsg("verify-msg","Please go back and register again","info"); return;
+  }
+  showMsg("verify-msg","Resending code — please wait...","info");
+  // Re-hit register with same data — server will overwrite pending user
+  try {
+    const res  = await fetch("/register-resend", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ email: registeredEmail })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showMsg("verify-msg","New code sent! Check your inbox.","success");
+      ["c1","c2","c3","c4","c5","c6"].forEach(id => document.getElementById(id).value = "");
+      document.getElementById("c1").focus();
+    } else {
+      showMsg("verify-msg", data.message || "Could not resend. Try registering again.", "error");
+    }
+  } catch {
+    showMsg("verify-msg","Error resending. Try registering again.","error");
+  }
 }
 
-// ── CODE INPUT HELPERS ──
+// ── CODE INPUT ──
 function codeMove(el, nextId) {
-  el.value = el.value.replace(/\D/g, ""); // numbers only
-  if (el.value && nextId) {
-    document.getElementById(nextId).focus();
-  }
-  // Auto submit when all 6 filled
+  el.value = el.value.replace(/\D/g, "");
+  if (el.value && nextId) document.getElementById(nextId).focus();
   const code = ["c1","c2","c3","c4","c5","c6"].map(id => document.getElementById(id).value).join("");
   if (code.length === 6) doVerify();
 }
 
 function codeBack(e, el, prevId) {
-  if (e.key === "Backspace" && !el.value && prevId) {
-    document.getElementById(prevId).focus();
-  }
+  if (e.key === "Backspace" && !el.value && prevId) document.getElementById(prevId).focus();
 }
 
-// ── MSG HELPERS ──
+// ── HELPERS ──
 function showMsg(id, text, type) {
   const el = document.getElementById(id);
   el.textContent   = text;
   el.className     = "msg " + type;
   el.style.display = "block";
 }
-
 function hideMsg(id) {
   document.getElementById(id).style.display = "none";
 }
