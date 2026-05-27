@@ -27,25 +27,9 @@ body{
   border:1px solid rgba(0,217,255,0.08);
   border-radius:20px;padding:44px 38px;
 }
-.logo{text-align:center;margin-bottom:28px;}
+.logo{text-align:center;margin-bottom:32px;}
 .logo h1{font-size:22px;font-weight:700;color:#00d9ff;margin-bottom:6px;}
 .logo p{font-size:13px;color:#5a7a8a;}
-
-/* STEPS */
-.steps{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:28px;}
-.step{
-  display:flex;align-items:center;gap:6px;
-  font-size:12px;color:#5a7a8a;font-weight:500;
-}
-.step-num{
-  width:24px;height:24px;border-radius:50%;
-  background:#111d29;border:1px solid rgba(0,217,255,0.15);
-  display:flex;align-items:center;justify-content:center;
-  font-size:11px;font-weight:700;transition:all .3s;
-}
-.step.active .step-num{background:#00d9ff;border-color:#00d9ff;color:#000;}
-.step.done .step-num{background:rgba(0,255,136,0.15);border-color:#00ff88;color:#00ff88;}
-.step-line{width:30px;height:1px;background:rgba(0,217,255,0.15);}
 
 .field{margin-bottom:16px;}
 .field label{display:block;font-size:11px;font-weight:600;color:#5a7a8a;letter-spacing:1px;text-transform:uppercase;margin-bottom:7px;}
@@ -56,72 +40,49 @@ body{
 }
 .field input:focus{border-color:rgba(0,217,255,0.3);}
 
-/* CODE INPUT */
-.code-inputs{display:flex;gap:10px;justify-content:center;margin:20px 0;}
-.code-inputs input{
-  width:48px;height:56px;text-align:center;font-size:22px;font-weight:700;
-  background:#111d29;border:1px solid rgba(0,217,255,0.15);
-  border-radius:10px;color:#00d9ff;font-family:'Sora',sans-serif;outline:none;
-  transition:border-color .2s;
-}
-.code-inputs input:focus{border-color:#00d9ff;}
+/* Password strength */
+.pwd-strength{height:3px;border-radius:2px;margin-top:6px;transition:all .3s;background:#111d29;}
+.pwd-strength.weak{background:#ff4757;width:33%;}
+.pwd-strength.medium{background:#ff9f43;width:66%;}
+.pwd-strength.strong{background:#00ff88;width:100%;}
 
 .btn-submit{
   width:100%;padding:14px;
   background:linear-gradient(135deg,#00d9ff,#0066ff);
   border:none;border-radius:10px;color:#000;font-family:'Sora',sans-serif;
-  font-size:14px;font-weight:700;cursor:pointer;transition:opacity .2s;margin-top:4px;
+  font-size:14px;font-weight:700;cursor:pointer;transition:opacity .2s;margin-top:8px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
 }
 .btn-submit:hover{opacity:.88;}
 .btn-submit:disabled{opacity:.5;cursor:not-allowed;}
 
-.msg{
-  text-align:center;font-size:13px;margin-top:12px;
-  padding:10px;border-radius:8px;display:none;
-}
+.spin{width:16px;height:16px;border:2px solid rgba(0,0,0,0.3);border-top-color:#000;border-radius:50%;animation:sp .7s linear infinite;display:inline-block;}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.msg{text-align:center;font-size:13px;margin-top:12px;padding:10px;border-radius:8px;display:none;}
 .msg.error{background:rgba(255,71,87,0.1);border:1px solid rgba(255,71,87,0.2);color:#ff4757;}
 .msg.success{background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.2);color:#00ff88;}
-.msg.info{background:rgba(0,217,255,0.08);border:1px solid rgba(0,217,255,0.2);color:#00d9ff;}
 
-.bottom{text-align:center;margin-top:18px;font-size:13px;color:#5a7a8a;}
+.bottom{text-align:center;margin-top:20px;font-size:13px;color:#5a7a8a;}
 .bottom a{color:#00d9ff;text-decoration:none;font-weight:600;}
 .bottom a:hover{text-decoration:underline;}
 
-.email-hint{
-  text-align:center;font-size:13px;color:#5a7a8a;
-  margin-bottom:16px;line-height:1.6;
-}
-.email-hint span{color:#00d9ff;font-weight:600;}
+/* Success screen */
+.done{display:none;text-align:center;padding:20px 0;}
+.done i{font-size:56px;color:#00ff88;margin-bottom:16px;display:block;}
+.done h2{font-size:20px;font-weight:700;margin-bottom:8px;}
+.done p{color:#5a7a8a;font-size:14px;margin-bottom:24px;}
 </style>
 </head>
 <body>
 <div class="bg"></div>
-
 <div class="box">
   <div class="logo">
     <h1><i class="fa-solid fa-heart-pulse"></i> MASTER BIOMEDS</h1>
     <p>Create your account</p>
   </div>
 
-  <!-- STEPS -->
-  <div class="steps">
-    <div class="step active" id="step1">
-      <div class="step-num">1</div>
-      <span>Details</span>
-    </div>
-    <div class="step-line"></div>
-    <div class="step" id="step2">
-      <div class="step-num">2</div>
-      <span>Verify</span>
-    </div>
-    <div class="step-line"></div>
-    <div class="step" id="step3">
-      <div class="step-num">3</div>
-      <span>Done</span>
-    </div>
-  </div>
-
-  <!-- STEP 1 — Register Form -->
+  <!-- REGISTER FORM -->
   <div id="form-register">
     <div class="field">
       <label>Full Name</label>
@@ -133,7 +94,8 @@ body{
     </div>
     <div class="field">
       <label>Password</label>
-      <input type="password" id="reg-pass" placeholder="Min 6 characters" autocomplete="new-password">
+      <input type="password" id="reg-pass" placeholder="Min 6 characters" autocomplete="new-password" oninput="checkStrength(this.value)">
+      <div class="pwd-strength" id="pwd-bar"></div>
     </div>
     <div class="field">
       <label>Confirm Password</label>
@@ -146,50 +108,30 @@ body{
     <div class="bottom">Already have an account? <a href="/login.html">Login here</a></div>
   </div>
 
-  <!-- STEP 2 — Verify Code -->
-  <div id="form-verify" style="display:none;">
-    <div class="email-hint">
-      We sent a 6-digit code to<br>
-      <span id="verify-email-show"></span>
-    </div>
-    <div class="code-inputs">
-      <input type="text" maxlength="1" id="c1" oninput="codeMove(this,'c2')" onkeydown="codeBack(event,this,null)">
-      <input type="text" maxlength="1" id="c2" oninput="codeMove(this,'c3')" onkeydown="codeBack(event,this,'c1')">
-      <input type="text" maxlength="1" id="c3" oninput="codeMove(this,'c4')" onkeydown="codeBack(event,this,'c2')">
-      <input type="text" maxlength="1" id="c4" oninput="codeMove(this,'c5')" onkeydown="codeBack(event,this,'c3')">
-      <input type="text" maxlength="1" id="c5" oninput="codeMove(this,'c6')" onkeydown="codeBack(event,this,'c4')">
-      <input type="text" maxlength="1" id="c6" oninput="codeMove(this,null)"  onkeydown="codeBack(event,this,'c5')">
-    </div>
-    <button class="btn-submit" id="verify-btn" onclick="doVerify()">
-      <i class="fa-solid fa-check-circle"></i> Verify Code
-    </button>
-    <div class="msg" id="verify-msg"></div>
-    <div class="bottom" style="margin-top:14px;">
-      <a href="#" onclick="resendCode()">Resend code</a>
-    </div>
-  </div>
-
-  <!-- STEP 3 — Success -->
-  <div id="form-done" style="display:none;text-align:center;padding:20px 0;">
-    <i class="fa-solid fa-circle-check" style="font-size:56px;color:#00ff88;margin-bottom:16px;display:block;"></i>
-    <h2 style="font-size:20px;font-weight:700;margin-bottom:8px;">Account Created!</h2>
-    <p style="color:#5a7a8a;font-size:14px;margin-bottom:24px;">Your account is verified. Redirecting to login...</p>
+  <!-- SUCCESS -->
+  <div class="done" id="form-done">
+    <i class="fa-solid fa-circle-check"></i>
+    <h2>Account Created!</h2>
+    <p>Welcome to Master Biomeds. Redirecting to login...</p>
     <a href="/login.html">
       <button class="btn-submit"><i class="fa-solid fa-right-to-bracket"></i> Go to Login</button>
     </a>
   </div>
-
 </div>
 
 <script>
-let registeredEmail = "";
-
-// If already logged in
 if (localStorage.getItem("biomeds_token")) {
   window.location.href = "/dashboard.html";
 }
 
-// ── REGISTER ──
+function checkStrength(val) {
+  const bar = document.getElementById("pwd-bar");
+  if (!val) { bar.className = "pwd-strength"; return; }
+  if (val.length < 6) bar.className = "pwd-strength weak";
+  else if (val.length < 10) bar.className = "pwd-strength medium";
+  else bar.className = "pwd-strength strong";
+}
+
 async function doRegister() {
   const username = document.getElementById("reg-name").value.trim();
   const email    = document.getElementById("reg-email").value.trim();
@@ -200,17 +142,17 @@ async function doRegister() {
   hideMsg("reg-msg");
 
   if (!username || !email || !password || !pass2) {
-    showMsg("reg-msg", "All fields are required", "error"); return;
+    showMsg("reg-msg","All fields are required","error"); return;
   }
   if (password.length < 6) {
-    showMsg("reg-msg", "Password must be at least 6 characters", "error"); return;
+    showMsg("reg-msg","Password must be at least 6 characters","error"); return;
   }
   if (password !== pass2) {
-    showMsg("reg-msg", "Passwords do not match", "error"); return;
+    showMsg("reg-msg","Passwords do not match","error"); return;
   }
 
-  btn.disabled   = true;
-  btn.textContent = "Sending code...";
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Creating account...';
 
   try {
     const res  = await fetch("/register", {
@@ -221,104 +163,30 @@ async function doRegister() {
     const data = await res.json();
 
     if (data.success) {
-      registeredEmail = email;
-      document.getElementById("verify-email-show").textContent = email;
-      // Switch to step 2
       document.getElementById("form-register").style.display = "none";
-      document.getElementById("form-verify").style.display   = "block";
-      // Update steps
-      document.getElementById("step1").classList.remove("active");
-      document.getElementById("step1").classList.add("done");
-      document.getElementById("step2").classList.add("active");
-      document.getElementById("c1").focus();
-    } else {
-      showMsg("reg-msg", data.message || "Registration failed", "error");
-      btn.disabled    = false;
-      btn.innerHTML   = '<i class="fa-solid fa-user-plus"></i> Create Account';
-    }
-  } catch {
-    showMsg("reg-msg", "Connection error. Is the server running?", "error");
-    btn.disabled    = false;
-    btn.innerHTML   = '<i class="fa-solid fa-user-plus"></i> Create Account';
-  }
-}
-
-// ── VERIFY ──
-async function doVerify() {
-  const code = ["c1","c2","c3","c4","c5","c6"].map(id => document.getElementById(id).value).join("");
-  const btn  = document.getElementById("verify-btn");
-
-  hideMsg("verify-msg");
-
-  if (code.length < 6) {
-    showMsg("verify-msg", "Enter the full 6-digit code", "error"); return;
-  }
-
-  btn.disabled    = true;
-  btn.textContent = "Verifying...";
-
-  try {
-    const res  = await fetch("/verify", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ email: registeredEmail, code })
-    });
-    const data = await res.json();
-
-    if (data.success) {
-      // Update steps
-      document.getElementById("step2").classList.remove("active");
-      document.getElementById("step2").classList.add("done");
-      document.getElementById("step3").classList.add("active");
-      // Show done screen
-      document.getElementById("form-verify").style.display = "none";
-      document.getElementById("form-done").style.display   = "block";
-      // Auto redirect to login after 2.5s
+      document.getElementById("form-done").style.display = "block";
       setTimeout(() => { window.location.href = "/login.html"; }, 2500);
     } else {
-      showMsg("verify-msg", data.message || "Invalid code", "error");
-      btn.disabled  = false;
-      btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Verify Code';
+      showMsg("reg-msg", data.message || "Registration failed", "error");
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Account';
     }
   } catch {
-    showMsg("verify-msg", "Connection error", "error");
-    btn.disabled  = false;
-    btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Verify Code';
+    showMsg("reg-msg","Connection error. Please try again.","error");
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Account';
   }
 }
 
-async function resendCode() {
-  showMsg("verify-msg", "Resending code...", "info");
-  // Just re-trigger — user needs to go back and register again
-  // Or you can add a resend endpoint
-  showMsg("verify-msg", "Please go back and register again to get a new code", "info");
-}
+// Allow Enter key
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter") doRegister();
+});
 
-// ── CODE INPUT HELPERS ──
-function codeMove(el, nextId) {
-  el.value = el.value.replace(/\D/g, ""); // numbers only
-  if (el.value && nextId) {
-    document.getElementById(nextId).focus();
-  }
-  // Auto submit when all 6 filled
-  const code = ["c1","c2","c3","c4","c5","c6"].map(id => document.getElementById(id).value).join("");
-  if (code.length === 6) doVerify();
-}
-
-function codeBack(e, el, prevId) {
-  if (e.key === "Backspace" && !el.value && prevId) {
-    document.getElementById(prevId).focus();
-  }
-}
-
-// ── MSG HELPERS ──
 function showMsg(id, text, type) {
   const el = document.getElementById(id);
-  el.textContent   = text;
-  el.className     = "msg " + type;
-  el.style.display = "block";
+  el.textContent = text; el.className = "msg " + type; el.style.display = "block";
 }
-
 function hideMsg(id) {
   document.getElementById(id).style.display = "none";
 }
