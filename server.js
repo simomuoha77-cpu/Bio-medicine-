@@ -834,6 +834,33 @@ adminRoutes("/api/xadmin");
 adminRoutes("/api/mbx9k");
 
 // ============================
+// PING ROUTE (keep-alive)
+// ============================
+app.get("/ping", (req, res) => {
+  res.json({ status: "ok", time: new Date().toISOString(), uptime: process.uptime() });
+});
+
+// ============================
+// SELF-PING (prevent Render sleep)
+// ============================
+function startSelfPing() {
+  const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+  const INTERVAL = 5 * 60 * 1000; // every 5 minutes
+
+  setInterval(async () => {
+    try {
+      const res = await fetch(`${SELF_URL}/ping`);
+      const data = await res.json();
+      console.log(`🏓 Self-ping OK — ${data.time} | uptime: ${Math.floor(data.uptime/60)}m`);
+    } catch (err) {
+      console.warn(`⚠️  Self-ping failed: ${err.message}`);
+    }
+  }, INTERVAL);
+
+  console.log(`✅ Self-ping started → every 5 min → ${SELF_URL}/ping`);
+}
+
+// ============================
 // START
 // ============================
 mongoose.connection.once("open", async () => {
@@ -847,5 +874,7 @@ mongoose.connection.once("open", async () => {
 ║  Admin  : /mbd-ctrl-9x7k2mz.html    ║
 ║  MongoDB: Connected ✅               ║
 ╚══════════════════════════════════════╝`);
+    // Start self-ping after server is up
+    startSelfPing();
   });
 });
