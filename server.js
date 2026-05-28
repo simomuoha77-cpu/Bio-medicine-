@@ -397,43 +397,67 @@ app.post("/api/ai/ask", userAuth, async (req, res) => {
   }
 
   try {
-    const keySetting = await Settings.findOne({ key: "gemini_api_key" });
-    const geminiKey  = keySetting?.value || process.env.GEMINI_API_KEY || "";
+    // ── Load ALL available API keys (rotate on quota error) ──
+    const keySetting  = await Settings.findOne({ key: "gemini_api_key" });
+    const key1        = keySetting?.value || process.env.GEMINI_API_KEY || "";
+    const key2        = process.env.GEMINI_API_KEY_2 || "";
+    const key3        = process.env.GEMINI_API_KEY_3 || "";
+    const allKeys     = [key1, key2, key3].filter(k => k.length > 10);
 
-    if (!geminiKey) {
+    if (allKeys.length === 0) {
       return res.json({
         success: false,
-        message: "AI not configured yet. Admin needs to set the Gemini API key in Settings."
+        message: "AI not configured. Admin needs to set Gemini API key in Settings."
       });
     }
 
-    const MODELS = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.0-flash-lite"];
-    let answer = "", lastError = "";
+    const MODELS   = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash-lite"];
+    let answer     = "";
+    let lastError  = "";
+    let usedKey    = "";
+    let usedModel  = "";
 
-    for (const model of MODELS) {
-      try {
-        const r = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] },
-              contents: [{ role: "user", parts: [{ text: question }] }],
-              generationConfig: { temperature: 0.3, maxOutputTokens: 2000 }
-            })
+    // Try every key × every model until one works
+    outer: for (const apiKey of allKeys) {
+      for (const model of MODELS) {
+        try {
+          const r = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] },
+                contents: [{ role: "user", parts: [{ text: question }] }],
+                generationConfig: { temperature: 0.3, maxOutputTokens: 2000 }
+              })
+            }
+          );
+          const d = await r.json();
+
+          // Quota exceeded — try next key immediately
+          if (d.error?.status === "RESOURCE_EXHAUSTED" || d.error?.code === 429) {
+            console.warn(`⚠️  Key ...${apiKey.slice(-6)} quota exceeded on ${model} — trying next key`);
+            break; // break inner loop → try next key
           }
-        );
-        const d = await r.json();
-        if (d.error) { lastError = d.error.message; continue; }
-        const text = d.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!text)  { lastError = "Empty response"; continue; }
-        answer = text;
-        break;
-      } catch (e) { lastError = e.message; continue; }
+
+          if (d.error) { lastError = d.error.message; continue; }
+
+          const text = d.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!text)  { lastError = "Empty response"; continue; }
+
+          answer    = text;
+          usedKey   = apiKey.slice(-6);
+          usedModel = model;
+          break outer;
+
+        } catch (e) { lastError = e.message; continue; }
+      }
     }
 
-    if (!answer) throw new Error("All models failed: " + lastError);
+    if (!answer) throw new Error("All keys & models failed. Last error: " + lastError);
+
+    console.log(`✅ MedBot answered — key: ...${usedKey} model: ${usedModel}`);
 
     user.aiPoints     -= 1;
     user.aiUsageCount += 1;
@@ -463,12 +487,16 @@ const JUANAI_MODELS = ["gemini-2.5-flash","gemini-2.5-flash-lite","gemini-2.0-fl
 app.post("/api/juanai/chat", async (req, res) => {
   const { message, history = [] } = req.body;
   if (!message || !message.trim()) return res.json({ success: false, message: "Please enter a message" });
-  let geminiKey = "";
+  // Load all keys for rotation
+  let key1 = "", key2 = "", key3 = "";
   try {
     const keySetting = await Settings.findOne({ key: "gemini_api_key" });
-    geminiKey = keySetting?.value || process.env.GEMINI_API_KEY || "";
-  } catch (e) { geminiKey = process.env.GEMINI_API_KEY || ""; }
-  if (!geminiKey) return res.json({ success: false, message: "AI not configured. Set Gemini API key in admin panel." });
+    key1 = keySetting?.value || process.env.GEMINI_API_KEY || "";
+  } catch (e) { key1 = process.env.GEMINI_API_KEY || ""; }
+  key2 = process.env.GEMINI_API_KEY_2 || "";
+  key3 = process.env.GEMINI_API_KEY_3 || "";
+  const juanaiKeys = [key1, key2, key3].filter(k => k.length > 10);
+  if (juanaiKeys.length === 0) return res.json({ success: false, message: "AI not configured. Set Gemini API key in admin panel." });
 
   const contents = [];
   (Array.isArray(history) ? history : []).slice(-10).forEach(t => {
@@ -477,18 +505,21 @@ app.post("/api/juanai/chat", async (req, res) => {
   contents.push({ role: "user", parts: [{ text: message.trim() }] });
 
   let answer = "", lastError = "";
-  for (const model of JUANAI_MODELS) {
-    try {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ systemInstruction: { parts: [{ text: JUANAI_SYSTEM }] }, contents, generationConfig: { temperature: 0.75, maxOutputTokens: 4096 } })
-      });
-      const d = await r.json();
-      if (d.error) { lastError = d.error.message; continue; }
-      const text = d.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text)   { lastError = "Empty response"; continue; }
-      answer = text; break;
-    } catch (e) { lastError = e.message; continue; }
+  outer2: for (const apiKey of juanaiKeys) {
+    for (const model of JUANAI_MODELS) {
+      try {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ systemInstruction: { parts: [{ text: JUANAI_SYSTEM }] }, contents, generationConfig: { temperature: 0.75, maxOutputTokens: 4096 } })
+        });
+        const d = await r.json();
+        if (d.error?.status === "RESOURCE_EXHAUSTED" || d.error?.code === 429) { break; }
+        if (d.error) { lastError = d.error.message; continue; }
+        const text = d.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text)   { lastError = "Empty response"; continue; }
+        answer = text; break outer2;
+      } catch (e) { lastError = e.message; continue; }
+    }
   }
   if (!answer) return res.json({ success: false, message: "AI unavailable: " + lastError });
   const token = req.headers["x-user-token"];
