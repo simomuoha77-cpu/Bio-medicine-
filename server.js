@@ -411,16 +411,19 @@ app.post("/api/ai/ask", userAuth, async (req, res) => {
       });
     }
 
-    const MODELS   = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash-lite"];
-    let answer     = "";
-    let lastError  = "";
-    let usedKey    = "";
-    let usedModel  = "";
+    const MODELS  = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash-lite"];
+    let answer    = "";
+    let lastError = "";
+    let usedKey   = "";
+    let usedModel = "";
 
-    // Try every key × every model until one works
-    outer: for (const apiKey of allKeys) {
+    // Try every key × every model — no break on quota, try ALL combos
+    for (const apiKey of allKeys) {
+      if (answer) break;
       for (const model of MODELS) {
+        if (answer) break;
         try {
+          console.log(`[AI] Trying key ...${apiKey.slice(-6)} model: ${model}`);
           const r = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
             {
@@ -435,23 +438,27 @@ app.post("/api/ai/ask", userAuth, async (req, res) => {
           );
           const d = await r.json();
 
-          // Quota exceeded — try next key immediately
-          if (d.error?.status === "RESOURCE_EXHAUSTED" || d.error?.code === 429) {
-            console.warn(`⚠️  Key ...${apiKey.slice(-6)} quota exceeded on ${model} — trying next key`);
-            break; // break inner loop → try next key
+          if (d.error) {
+            lastError = d.error.message || JSON.stringify(d.error);
+            console.warn(`[AI] ❌ key ...${apiKey.slice(-6)} ${model}: ${lastError}`);
+            continue;
           }
 
-          if (d.error) { lastError = d.error.message; continue; }
-
           const text = d.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!text)  { lastError = "Empty response"; continue; }
+          if (!text) {
+            lastError = "Empty response from " + model;
+            console.warn(`[AI] ❌ Empty response from ${model}`);
+            continue;
+          }
 
           answer    = text;
           usedKey   = apiKey.slice(-6);
           usedModel = model;
-          break outer;
 
-        } catch (e) { lastError = e.message; continue; }
+        } catch (e) {
+          lastError = e.message;
+          console.warn(`[AI] ❌ Exception on ${model}: ${e.message}`);
+        }
       }
     }
 
@@ -505,19 +512,20 @@ app.post("/api/juanai/chat", async (req, res) => {
   contents.push({ role: "user", parts: [{ text: message.trim() }] });
 
   let answer = "", lastError = "";
-  outer2: for (const apiKey of juanaiKeys) {
+  for (const apiKey of juanaiKeys) {
+    if (answer) break;
     for (const model of JUANAI_MODELS) {
+      if (answer) break;
       try {
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ systemInstruction: { parts: [{ text: JUANAI_SYSTEM }] }, contents, generationConfig: { temperature: 0.75, maxOutputTokens: 4096 } })
         });
         const d = await r.json();
-        if (d.error?.status === "RESOURCE_EXHAUSTED" || d.error?.code === 429) { break; }
-        if (d.error) { lastError = d.error.message; continue; }
+        if (d.error) { lastError = d.error.message || JSON.stringify(d.error); continue; }
         const text = d.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text)   { lastError = "Empty response"; continue; }
-        answer = text; break outer2;
+        answer = text;
       } catch (e) { lastError = e.message; continue; }
     }
   }
