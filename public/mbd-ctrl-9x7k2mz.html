@@ -291,6 +291,8 @@ tr:hover td{background:rgba(255,255,255,0.012);}
       <div class="nav-grp">Insights</div>
       <button class="nl" onclick="showSec('analytics',this)"><i class="fa-solid fa-chart-bar"></i> Analytics</button>
       <button class="nl" onclick="showSec('logs',this)"><i class="fa-solid fa-scroll"></i> Activity Logs</button>
+      <div class="nav-grp">Revenue</div>
+      <button class="nl" onclick="showSec('payments',this)"><i class="fa-solid fa-money-bill-wave" style="color:#00c853;"></i> M-Pesa Payments</button>
       <div class="nav-grp">Admin</div>
       <button class="nl" onclick="showSec('settings',this)"><i class="fa-solid fa-gear"></i> Settings</button>
     </nav>
@@ -517,6 +519,24 @@ tr:hover td{background:rgba(255,255,255,0.012);}
     </div>
 
 
+    <!-- PAYMENTS -->
+    <div class="sec" id="sec-payments">
+      <div class="stat-grid" style="margin-bottom:18px;">
+        <div class="scard"><div class="scard-ic" style="background:rgba(0,200,83,0.1);color:#00c853"><i class="fa-solid fa-money-bill-wave"></i></div><div class="scard-val" id="pay-revenue">KES 0</div><div class="scard-lbl">Total Revenue</div></div>
+        <div class="scard"><div class="scard-ic" style="background:rgba(0,217,255,0.1);color:var(--accent)"><i class="fa-solid fa-receipt"></i></div><div class="scard-val" id="pay-count">0</div><div class="scard-lbl">Completed</div></div>
+        <div class="scard"><div class="scard-ic" style="background:rgba(255,159,67,0.1);color:var(--orange)"><i class="fa-solid fa-clock"></i></div><div class="scard-val" id="pay-pending">0</div><div class="scard-lbl">Pending</div></div>
+        <div class="scard"><div class="scard-ic" style="background:rgba(255,71,87,0.1);color:var(--red)"><i class="fa-solid fa-xmark-circle"></i></div><div class="scard-val" id="pay-failed">0</div><div class="scard-lbl">Failed</div></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-ttl"><i class="fa-solid fa-mobile-screen-button" style="color:#00c853;margin-right:6px;"></i>M-Pesa Transactions</span><button class="btn btn-ghost" onclick="loadPayments()"><i class="fa-solid fa-rotate"></i></button></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>PDF</th><th>Amount</th><th>Phone</th><th>Receipt</th><th>Status</th><th>Date</th></tr></thead>
+            <tbody id="payments-tbody"><tr><td colspan="6"><div class="empty-state"><i class="fa-solid fa-receipt"></i><p>No payments yet</p></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
     <!-- SETTINGS -->
     <div class="sec" id="sec-settings">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
@@ -782,6 +802,7 @@ function showSec(name,btn) {
   document.getElementById("page-title").textContent = secTitles[name]||name;
   if(window.innerWidth<900) document.getElementById("sidebar").classList.remove("open");
   if(name==="settings") loadSettings();
+  if(name==="payments")  loadPayments();
   document.getElementById("info-email").textContent = document.getElementById("av-name").textContent || "admin";
 }
 
@@ -1356,6 +1377,31 @@ async function saveAiPoints() {
   else toast(d.message, "er");
 }
 
+
+async function loadPayments() {
+  try {
+    const r = await aFetch('/api/mbx9k/payments');
+    const d = await r.json();
+    const payments = d.payments;
+    document.getElementById('pay-revenue').textContent = 'KES '+(d.totalRevenue||0).toLocaleString();
+    document.getElementById('pay-count').textContent   = payments.filter(p=>p.status=='completed').length;
+    document.getElementById('pay-pending').textContent = payments.filter(p=>p.status=='pending').length;
+    document.getElementById('pay-failed').textContent  = payments.filter(p=>p.status=='failed').length;
+    const tb = document.getElementById('payments-tbody');
+    tb.innerHTML = payments.map(p=>
+      '<tr><td style="font-size:12px;">'+( p.pdfTitle||'—')+'</td>'+
+      '<td style="color:#00c853;font-weight:700;">KES '+p.amount+'</td>'+
+      '<td style="font-size:11px;">'+(p.phone||'').replace('254','0')+'</td>'+
+      '<td style="font-size:10px;color:var(--accent);">'+( p.mpesaReceiptNumber||'—')+'</td>'+
+      '<td><span class="tag" style="'+(p.status=="completed"?"background:rgba(0,255,136,0.1);color:var(--green)":p.status=="pending"?"background:rgba(255,159,67,0.1);color:var(--orange)":"background:rgba(255,71,87,0.1);color:var(--red)")+'">'+p.status+'</span></td>'+
+      '<td style="font-size:10px;color:var(--muted);">'+new Date(p.createdAt).toLocaleString()+'</td></tr>'
+    ).join('');
+  } catch(e){console.error(e);}
+}
+
+// Load payments when navigating to section
+const _origInit = initPanel;
+function initPanel() { _origInit(); }
 </script>
 </body>
 </html>
