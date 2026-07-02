@@ -291,8 +291,6 @@ tr:hover td{background:rgba(255,255,255,0.012);}
       <div class="nav-grp">Insights</div>
       <button class="nl" onclick="showSec('analytics',this)"><i class="fa-solid fa-chart-bar"></i> Analytics</button>
       <button class="nl" onclick="showSec('logs',this)"><i class="fa-solid fa-scroll"></i> Activity Logs</button>
-      <div class="nav-grp">Revenue</div>
-      <button class="nl" onclick="showSec('payments',this)"><i class="fa-solid fa-money-bill-wave" style="color:#00c853;"></i> M-Pesa Payments</button>
       <div class="nav-grp">Admin</div>
       <button class="nl" onclick="showSec('settings',this)"><i class="fa-solid fa-gear"></i> Settings</button>
     </nav>
@@ -344,7 +342,7 @@ tr:hover td{background:rgba(255,255,255,0.012);}
         <div class="ph"><span class="ph-ttl" id="pdf-count-lbl">All PDFs</span><button class="btn btn-ghost" onclick="loadPdfs()"><i class="fa-solid fa-rotate"></i></button></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Cover</th><th>Title</th><th>Category</th><th>Access</th><th>Price</th><th>Downloads</th><th>Size</th><th>Date</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Cover</th><th>Title</th><th>Type</th><th>Category</th><th>Access</th><th>Downloads</th><th>Size</th><th>Date</th><th>Actions</th></tr></thead>
             <tbody id="pdfs-tbody"><tr><td colspan="8"><div class="empty-state"><i class="fa-solid fa-file-pdf"></i><p>No PDFs yet</p></div></td></tr></tbody>
           </table>
         </div>
@@ -390,15 +388,6 @@ tr:hover td{background:rgba(255,255,255,0.012);}
               <div class="fg"><label>Subject</label><input type="text" id="up-subj" placeholder="Anatomy"></div>
               <div class="fg"><label>Semester</label><input type="text" id="up-sem" placeholder="Year 2"></div>
               <div class="fg"><label>Access</label><select id="up-acc"><option value="public">Public</option><option value="premium">Premium</option><option value="restricted">Restricted</option></select></div>
-            </div>
-            <div class="frow" style="margin-bottom:14px;">
-              <div class="fg">
-                <label><i class="fa-solid fa-mobile-screen-button" style="color:#00c853;margin-right:4px;"></i>M-Pesa Price (KES)</label>
-                <input type="number" id="up-price" placeholder="0 = Free" min="0" step="1">
-              </div>
-              <div class="fg" style="justify-content:flex-end;padding-top:20px;">
-                <small style="color:var(--muted);font-size:11px;">Leave 0 or empty for free download</small>
-              </div>
             </div>
             <button class="btn btn-primary" onclick="uploadSingle()" style="width:100%;padding:12px;"><i class="fa-solid fa-cloud-arrow-up"></i> Upload PDF</button>
           </div>
@@ -527,25 +516,6 @@ tr:hover td{background:rgba(255,255,255,0.012);}
       </div>
     </div>
 
-
-    <!-- PAYMENTS -->
-    <div class="sec" id="sec-payments">
-      <div class="stat-grid" style="margin-bottom:18px;">
-        <div class="scard"><div class="scard-ic" style="background:rgba(0,200,83,0.1);color:#00c853"><i class="fa-solid fa-money-bill-wave"></i></div><div class="scard-val" id="pay-revenue">KES 0</div><div class="scard-lbl">Total Revenue</div></div>
-        <div class="scard"><div class="scard-ic" style="background:rgba(0,217,255,0.1);color:var(--accent)"><i class="fa-solid fa-receipt"></i></div><div class="scard-val" id="pay-count">0</div><div class="scard-lbl">Completed</div></div>
-        <div class="scard"><div class="scard-ic" style="background:rgba(255,159,67,0.1);color:var(--orange)"><i class="fa-solid fa-clock"></i></div><div class="scard-val" id="pay-pending">0</div><div class="scard-lbl">Pending</div></div>
-        <div class="scard"><div class="scard-ic" style="background:rgba(255,71,87,0.1);color:var(--red)"><i class="fa-solid fa-xmark-circle"></i></div><div class="scard-val" id="pay-failed">0</div><div class="scard-lbl">Failed</div></div>
-      </div>
-      <div class="panel">
-        <div class="ph"><span class="ph-ttl"><i class="fa-solid fa-mobile-screen-button" style="color:#00c853;margin-right:6px;"></i>M-Pesa Transactions</span><button class="btn btn-ghost" onclick="loadPayments()"><i class="fa-solid fa-rotate"></i></button></div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>PDF</th><th>Amount</th><th>Phone</th><th>Receipt</th><th>Status</th><th>Date</th></tr></thead>
-            <tbody id="payments-tbody"><tr><td colspan="6"><div class="empty-state"><i class="fa-solid fa-receipt"></i><p>No payments yet</p></div></td></tr></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
 
     <!-- SETTINGS -->
     <div class="sec" id="sec-settings">
@@ -684,11 +654,8 @@ tr:hover td{background:rgba(255,255,255,0.012);}
       <div class="fg"><label>Subject</label><input type="text" id="edit-subj"></div>
       <div class="fg"><label>Semester</label><input type="text" id="edit-sem"></div>
     </div>
-    <div class="frow"><div class="fg"><label>Access Level</label>
+    <div class="frow one"><div class="fg"><label>Access Level</label>
       <select id="edit-acc"><option value="public">Public</option><option value="premium">Premium</option><option value="restricted">Restricted</option></select>
-    </div>
-    <div class="fg"><label><i class="fa-solid fa-mobile-screen-button" style="color:#00c853;margin-right:4px;"></i>M-Pesa Price (KES)</label>
-      <input type="number" id="edit-price" placeholder="0 = Free" min="0" step="1">
     </div></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px;">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
@@ -815,7 +782,6 @@ function showSec(name,btn) {
   document.getElementById("page-title").textContent = secTitles[name]||name;
   if(window.innerWidth<900) document.getElementById("sidebar").classList.remove("open");
   if(name==="settings") loadSettings();
-  if(name==="payments")  loadPayments();
   document.getElementById("info-email").textContent = document.getElementById("av-name").textContent || "admin";
 }
 
@@ -929,7 +895,6 @@ function renderPdfs(list) {
       <td><div style="font-weight:500;font-size:12px;">${p.title}</div><div style="font-size:10px;color:var(--muted);">${p.originalName||""}</div></td>
       <td>${catMap[p.category]||p.category||"—"}</td>
       <td><span class="tag tag-${p.access}">${p.access}</span></td>
-      <td><span style="font-family:'JetBrains Mono';font-size:11px;color:#00c853;">${p.price && p.price > 0 ? "KES "+p.price : "Free"}</span></td>
       <td><span style="font-family:'JetBrains Mono';font-size:11px;">${p.downloads}</span></td>
       <td><span style="font-size:11px;color:var(--muted);">${fmtBytes(p.fileSize)}</span></td>
       <td><span style="font-size:10px;color:var(--muted);">${new Date(p.uploadedAt).toLocaleDateString()}</span></td>
@@ -1021,7 +986,6 @@ async function uploadSingle() {
   fd.append("subject",     document.getElementById("up-subj").value);
   fd.append("semester",    document.getElementById("up-sem").value);
   fd.append("access",      document.getElementById("up-acc").value);
-  fd.append("price",       document.getElementById("up-price").value || "0");
 
   // Thumbnail
   const thumbFile = document.getElementById("up-thumb-file").files[0];
@@ -1086,7 +1050,6 @@ function openEdit(id) {
   document.getElementById("edit-subj").value     = pdf.subject||"";
   document.getElementById("edit-sem").value      = pdf.semester||"";
   document.getElementById("edit-acc").value      = pdf.access;
-  document.getElementById("edit-price").value    = pdf.price || 0;
   document.getElementById("edit-thumb-file").value = "";
 
   // Load current thumbnail in preview
@@ -1122,7 +1085,6 @@ async function saveEdit() {
   fd.append("access",      document.getElementById("edit-acc").value);
   fd.append("subject",     document.getElementById("edit-subj").value);
   fd.append("semester",    document.getElementById("edit-sem").value);
-  fd.append("price",       document.getElementById("edit-price").value || "0");
   if(thumbFile) fd.append("thumbnail", thumbFile);
 
   try {
@@ -1379,33 +1341,6 @@ async function changePassword() {
     document.getElementById("new-pwd").value   = "";
     document.getElementById("new-pwd2").value  = "";
   } else toast(d.message, "er");
-}
-
-async function loadPayments() {
-  try {
-    const r = await aFetch("/api/mbx9k/payments");
-    const d = await r.json();
-    if(!d.success) return;
-    const payments = d.payments;
-    const completed = payments.filter(p=>p.status==="completed");
-    const pending   = payments.filter(p=>p.status==="pending");
-    const failed    = payments.filter(p=>p.status==="failed");
-    document.getElementById("pay-revenue").textContent = "KES "+(d.totalRevenue||0).toLocaleString();
-    document.getElementById("pay-count").textContent   = completed.length;
-    document.getElementById("pay-pending").textContent = pending.length;
-    document.getElementById("pay-failed").textContent  = failed.length;
-    const tb = document.getElementById("payments-tbody");
-    if(!payments.length){tb.innerHTML=`<tr><td colspan="6"><div class="empty-state"><i class="fa-solid fa-receipt"></i><p>No payments yet</p></div></td></tr>`;return;}
-    tb.innerHTML = payments.map(p=>`
-      <tr>
-        <td style="font-size:12px;font-weight:500;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.pdfTitle||"—"}</td>
-        <td style="font-family:'JetBrains Mono';font-size:11px;color:#00c853;font-weight:600;">KES ${p.amount}</td>
-        <td style="font-size:11px;color:var(--muted);">${(p.phone||"").replace("254","0")}</td>
-        <td style="font-family:'JetBrains Mono';font-size:10px;color:var(--accent);">${p.mpesaReceiptNumber||"—"}</td>
-        <td><span class="tag" style="${p.status==="completed"?"background:rgba(0,255,136,0.1);color:var(--green)":p.status==="pending"?"background:rgba(255,159,67,0.1);color:var(--orange)":"background:rgba(255,71,87,0.1);color:var(--red)"}">${p.status}</span></td>
-        <td style="font-size:10px;color:var(--muted);">${new Date(p.createdAt).toLocaleString()}</td>
-      </tr>`).join("");
-  } catch(e){console.error(e);}
 }
 
 async function saveAiPoints() {

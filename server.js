@@ -20,17 +20,7 @@ app.use(express.json());
 app.use(express.static("public"));
 app.use("/uploads", express.static("uploads"));
 
-// Block old admin URL
-app.get("/xadmin.html", (req, res) => res.status(404).send("Not found"));
-
 const PORT = process.env.PORT || 3000;
-
-// ============================
-// PING ROUTE (keep-alive)
-// ============================
-app.get("/ping", (req, res) => {
-  res.json({ status: "ok", time: new Date().toISOString(), uptime: Math.floor(process.uptime()) });
-});
 
 // ============================
 // DIRECTORIES
@@ -58,7 +48,6 @@ const userSchema = new mongoose.Schema({
   aiPoints:        { type: Number, default: 5 },
   aiPointsResetAt: { type: Date,   default: () => new Date(Date.now() + 24*60*60*1000) },
   aiUsageCount:    { type: Number, default: 0 },
-  purchasedPdfs:   { type: [String], default: [] },
   createdAt:       { type: Date,   default: Date.now },
   lastLogin:       { type: Date,   default: Date.now }
 });
@@ -73,10 +62,9 @@ const pdfSchema = new mongoose.Schema({
   filename:     { type: String, required: true },
   originalName: { type: String },
   fileSize:     { type: Number, default: 0 },
-  fileType:     { type: String, default: "pdf" },
   thumbnail:    { type: String, default: "" },
+  fileType:     { type: String, default: "pdf" }, // pdf | docx | pptx | xlsx
   downloads:    { type: Number, default: 0 },
-  price:        { type: Number, default: 0 },
   views:        { type: Number, default: 0 },
   uploadedBy:   { type: String },
   uploadedAt:   { type: Date, default: Date.now },
@@ -128,17 +116,7 @@ const Notification = mongoose.model("Notification", notifSchema);
 const AiChat       = mongoose.model("AiChat",       aiChatSchema);
 const Settings     = mongoose.model("Settings",     settingsSchema);
 
-// ============================
-// ALLOWED FILE TYPES
-// ============================
-const ALLOWED_TYPES = {
-  "application/pdf": "pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
-  "application/msword": "doc",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
-  "application/vnd.ms-powerpoint": "ppt",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx"
-};
+const pendingUsers = {};
 
 // ============================
 // SEED CATEGORIES
@@ -160,7 +138,18 @@ async function seedCategories() {
 // ============================
 // MULTER
 // ============================
-const fileStorage = multer.diskStorage({
+// Allowed document types
+const ALLOWED_TYPES = {
+  "application/pdf": "pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+  "application/vnd.ms-powerpoint": "ppt",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/vnd.ms-excel": "xls"
+};
+
+const pdfStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     if (file.fieldname === "thumbnail") cb(null, "uploads/thumbnails/");
     else cb(null, "uploads/pdfs/");
@@ -172,7 +161,7 @@ const fileStorage = multer.diskStorage({
 });
 
 const uploadFields = multer({
-  storage: fileStorage,
+  storage: pdfStorage,
   fileFilter: (req, file, cb) => {
     if (file.fieldname === "thumbnail") {
       const allowed = ["image/jpeg","image/png","image/webp","image/gif"];
@@ -180,17 +169,17 @@ const uploadFields = multer({
       else cb(new Error("Thumbnail must be an image"), false);
     } else {
       if (ALLOWED_TYPES[file.mimetype]) cb(null, true);
-      else cb(new Error("Only PDF, Word, PowerPoint, Excel files allowed"), false);
+      else cb(new Error("Only PDF, Word, PowerPoint and Excel files allowed"), false);
     }
   },
   limits: { fileSize: 100 * 1024 * 1024 }
 });
 
 const uploadBulk = multer({
-  storage: fileStorage,
+  storage: pdfStorage,
   fileFilter: (req, file, cb) => {
     if (ALLOWED_TYPES[file.mimetype]) cb(null, true);
-    else cb(new Error("Only PDF, Word, PowerPoint, Excel files allowed"), false);
+    else cb(new Error("Only PDF, Word, PowerPoint and Excel files allowed"), false);
   },
   limits: { fileSize: 100 * 1024 * 1024 }
 });
@@ -203,15 +192,12 @@ async function logActivity(type, message, userId = null, details = {}) {
 }
 
 // ============================
-// EMAIL (for notifications only)
+// EMAIL
 // ============================
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com", port: 587, secure: false,
   auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-  tls: { rejectUnauthorized: false },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000
+  tls: { rejectUnauthorized: false }
 });
 
 // ============================
@@ -245,7 +231,6 @@ async function userAuth(req, res, next) {
 // ============================
 app.get("/", (req, res) => res.sendFile(process.cwd() + "/public/index.html"));
 
-// ── REGISTER — direct to MongoDB, no email verification ──
 app.post("/register", async (req, res) => {
   try {
     const { username, email, password } = req.body;
@@ -254,44 +239,54 @@ app.post("/register", async (req, res) => {
     if (await User.findOne({ email }))
       return res.json({ success: false, message: "Account already exists" });
     const hashed = await bcrypt.hash(password, 10);
-    const user   = await User.create({ username, email, password: hashed });
-    await logActivity("register", `Registered: ${email}`, user._id.toString());
-    res.json({ success: true, message: "Account created successfully" });
+    const code   = Math.floor(100000 + Math.random() * 900000);
+    pendingUsers[email] = { username, email, password: hashed, code };
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER, to: email,
+      subject: "MASTER BIOMEDS — Verification Code",
+      html: `<div style="background:#071018;padding:40px;color:white;font-family:Arial;">
+        <h1 style="color:#00d9ff;">MASTER BIOMEDS</h1>
+        <p>Hello ${username}, your verification code:</p>
+        <h2 style="background:#00d9ff;color:black;padding:15px;border-radius:10px;width:fit-content;">${code}</h2>
+      </div>`
+    });
+    await logActivity("register", `Registration: ${email}`);
+    res.json({ success: true, message: "Verification code sent" });
   } catch (err) {
-    console.error("Register error:", err.message);
+    console.error(err);
     res.json({ success: false, message: "Registration failed" });
   }
 });
 
-// Keep verify as no-op for old clients
 app.post("/verify", async (req, res) => {
-  res.json({ success: true, message: "Verified" });
+  const { email, code } = req.body;
+  const p = pendingUsers[email];
+  if (!p)             return res.json({ success: false, message: "User not found" });
+  if (p.code != code) return res.json({ success: false, message: "Invalid code" });
+  const user = await User.create({ username: p.username, email: p.email, password: p.password });
+  delete pendingUsers[email];
+  await logActivity("verify", `Verified: ${email}`, user._id.toString());
+  res.json({ success: true, message: "Account verified successfully" });
 });
 
 app.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
-    if (!user)                       return res.json({ success: false, message: "Account not found" });
-    if (user.status === "suspended") return res.json({ success: false, message: "Account suspended. Contact admin." });
-    if (!await bcrypt.compare(password, user.password))
-      return res.json({ success: false, message: "Wrong password" });
-    user.lastLogin = new Date();
-    await user.save();
-    const token = Buffer.from(`${user._id}:${Date.now()}`).toString("base64");
-    await logActivity("login", `Login: ${email}`, user._id.toString());
-    res.json({
-      success: true, message: "Login successful", token,
-      user: { id: user._id, username: user.username, email: user.email, role: user.role }
-    });
-  } catch (err) {
-    res.json({ success: false, message: "Login failed" });
-  }
+  const { email, password } = req.body;
+  const user = await User.findOne({ email });
+  if (!user)                       return res.json({ success: false, message: "Account not found" });
+  if (user.status === "suspended") return res.json({ success: false, message: "Account suspended. Contact admin." });
+  if (!await bcrypt.compare(password, user.password))
+    return res.json({ success: false, message: "Wrong password" });
+  user.lastLogin = new Date();
+  await user.save();
+  const token = Buffer.from(`${user._id}:${Date.now()}`).toString("base64");
+  await logActivity("login", `Login: ${email}`, user._id.toString());
+  res.json({
+    success: true, message: "Login successful", token,
+    user: { id: user._id, username: user.username, email: user.email, role: user.role }
+  });
 });
 
-// ============================
-// PUBLIC FILES
-// ============================
+// PUBLIC PDFs
 app.get("/api/pdfs", async (req, res) => {
   const { category, search, page = 1, limit = 20 } = req.query;
   const query = { access: { $ne: "restricted" } };
@@ -316,13 +311,53 @@ app.get("/api/pdfs/:id/download", async (req, res) => {
   await logActivity("download", `Downloaded: ${pdf.title}`);
   const fp = path.join(process.cwd(), "uploads/pdfs", pdf.filename);
   if (!fs.existsSync(fp)) return res.json({ success: false, message: "File not found on server" });
-  const ext = path.extname(pdf.originalName || ("." + (pdf.fileType || "pdf")));
-  res.download(fp, pdf.title + ext);
+  const ext = path.extname(pdf.originalName || "").toLowerCase() || "." + (pdf.fileType || "pdf");
+  res.download(fp, (pdf.title + ext).replace(/[^a-zA-Z0-9.\-_ ]/g, ""));
 });
 
 // ============================
-// AI ROUTES
+// AI MEDICAL ASSISTANT
 // ============================
+const MEDICAL_KEYWORDS = [
+  "anatomy","physiology","pharmacology","drug","medicine","medical","patient","diagnosis",
+  "treatment","symptom","disease","disorder","syndrome","infection","bacteria","virus",
+  "cell","organ","tissue","bone","muscle","nerve","blood","heart","lung","kidney","liver",
+  "brain","surgery","procedure","clinical","therapy","dose","prescription","antibiotic",
+  "vaccine","immune","cancer","tumor","diabetes","hypertension","cardiac","respiratory",
+  "gastrointestinal","neurological","psychiatric","pediatric","obstetric","gynecology",
+  "radiology","pathology","biochemistry","microbiology","genetics","embryology","histology",
+  "nursing","biomedical","emt","emergency","trauma","wound","fracture","bleeding","pulse",
+  "blood pressure","temperature","oxygen","glucose","protein","enzyme","hormone","receptor",
+  "mechanism","action","side effect","contraindication","indication","prognosis","etiology",
+  "epidemiology","prevalence","incidence","mortality","morbidity","healthcare","hospital",
+  "clinic","ward","icu","cpr","first aid","triage","anesthesia","biopsy","mri","ct scan",
+  "xray","ecg","ekg","ultrasound","lab","test","normal range","inflammation","edema",
+  "ischemia","necrosis","fibrosis","hypertrophy","atrophy","metastasis","benign","malignant",
+  "acute","chronic","congenital","hereditary","autoimmune","allergy","anaphylaxis","sepsis",
+  "shock","arrhythmia","infarction","stroke","seizure","coma","fever","pain","nausea",
+  "vomiting","diarrhea","constipation","dyspnea","cyanosis","jaundice","anemia","leukemia",
+  "what is","explain","describe","how does","define","difference between","types of","causes of",
+  "signs of","symptoms of","treatment of","management of","classify","classification"
+];
+
+const AI_SYSTEM_PROMPT = `You are MedBot, an expert AI medical assistant for MASTER BIOMEDS — a platform for medical students studying nursing, biomedical engineering, radiography, EMT, and clinical medicine.
+
+YOUR RULES:
+- Answer ONLY medical, healthcare, and biomedical science questions
+- If NOT medical, refuse politely without wasting the user point
+- Give DEEP, detailed, well-structured answers like a professional medical textbook
+- Use proper medical terminology AND explain terms simply
+- Structure answers with these sections where relevant:
+  📌 Definition
+  🔬 Mechanism / Pathophysiology
+  🩺 Signs & Symptoms
+  💊 Treatment / Management
+  ⚠️ Complications
+  💡 Clinical Pearl (key exam tip)
+- Use bullet points and numbered lists for clarity
+- Include drug names, mechanisms, dosages when relevant
+- Be thorough — students need deep answers for exams and clinical practice`;
+
 app.get("/api/ai/points", userAuth, async (req, res) => {
   const user = req.user;
   const now  = new Date();
@@ -344,14 +379,472 @@ app.get("/api/ai/points", userAuth, async (req, res) => {
   });
 });
 
-app.post("/api/ai/deduct", userAuth, async (req, res) => {
+app.post("/api/ai/ask", userAuth, async (req, res) => {
   const user = req.user;
-  const { question, answer } = req.body;
+  const { question } = req.body;
+  if (!question || question.trim().length < 3)
+    return res.json({ success: false, message: "Please enter a valid question" });
+
   const now = new Date();
   if (now >= new Date(user.aiPointsResetAt)) {
     user.aiPoints        = 5;
     user.aiPointsResetAt = new Date(now.getTime() + 24*60*60*1000);
+    await user.save();
   }
+
+  if (user.aiPoints <= 0) {
+    const msLeft  = new Date(user.aiPointsResetAt) - now;
+    const hours   = Math.floor(msLeft / 1000 / 60 / 60);
+    const minutes = Math.floor((msLeft / 1000 / 60) % 60);
+    return res.json({
+      success: false, noPoints: true,
+      message: `You have used all 5 daily points. Resets in ${hours}h ${minutes}m.`,
+      timeLeft: { hours, minutes }
+    });
+  }
+
+  const q         = question.toLowerCase();
+  const isMedical = MEDICAL_KEYWORDS.some(kw => q.includes(kw));
+  if (!isMedical) {
+    return res.json({
+      success: false, notMedical: true,
+      message: "I only answer medical questions. Ask about anatomy, pharmacology, diseases, treatments, nursing, or any healthcare topic. No point was deducted."
+    });
+  }
+
+  try {
+    const keySetting = await Settings.findOne({ key: "gemini_api_key" });
+    const geminiKey  = keySetting?.value || process.env.GEMINI_API_KEY || "";
+
+    if (!geminiKey) {
+      return res.json({
+        success: false,
+        message: "AI not configured yet. Admin needs to set the Gemini API key in admin panel Settings."
+      });
+    }
+
+    // Same approach as JuanAi — try multiple models, fallback automatically
+    const MODELS = [
+      "gemini-2.0-flash",
+      "gemini-2.5-flash",
+      "gemini-2.0-flash-lite"
+    ];
+
+    let answer = "";
+    let lastError = "";
+
+    for (const model of MODELS) {
+      try {
+        console.log(`Trying model: ${model}`);
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+        
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: {
+              parts: [{ text: AI_SYSTEM_PROMPT }]
+            },
+            contents: [{ 
+              role: "user", 
+              parts: [{ text: question }] 
+            }],
+            generationConfig: { 
+              temperature: 0.7,
+              maxOutputTokens: 2000
+            }
+          })
+        });
+
+        const d = await r.json();
+
+        if (d.error) {
+          lastError = d.error.message || "API error";
+          console.log(`❌ Model ${model} failed: ${lastError}`);
+          continue;
+        }
+
+        const text = d.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) {
+          lastError = "Empty response from model";
+          console.log(`❌ Model ${model} empty response`);
+          continue;
+        }
+
+        answer = text;
+        console.log(`✅ MedBot answered using: ${model}`);
+        break;
+
+      } catch (modelErr) {
+        lastError = modelErr.message;
+        console.log(`❌ Model ${model} threw error: ${modelErr.message}`);
+        continue;
+      }
+    }
+
+    if (!answer) {
+      return res.json({ 
+        success: false, 
+        message: "All AI models failed. Last error: " + lastError 
+      });
+    }
+
+    user.aiPoints     -= 1;
+    user.aiUsageCount += 1;
+    await user.save();
+    await AiChat.create({ userId: user._id.toString(), question, answer });
+    await logActivity("ai_ask", `AI: ${user.email}`, user._id.toString());
+
+    res.json({ success: true, answer, pointsLeft: user.aiPoints, resetAt: user.aiPointsResetAt });
+
+  } catch (err) {
+    console.error("AI Error:", err.message);
+    res.json({ success: false, message: "AI error: " + err.message });
+  }
+});
+
+app.get("/api/ai/history", userAuth, async (req, res) => {
+  const chats = await AiChat.find({ userId: req.user._id.toString() })
+    .sort({ createdAt: -1 }).limit(30);
+  res.json({ success: true, chats });
+});
+
+// ============================
+// ADMIN AUTH
+// ============================
+app.post("/api/xadmin/auth", async (req, res) => {
+  const { email, password, secretKey } = req.body;
+
+  if (secretKey !== (process.env.ADMIN_SECRET || "MASTERBIOMEDS_ADMIN_2024"))
+    return res.json({ success: false, message: "Access denied" });
+
+  if (email !== (process.env.ADMIN_EMAIL || "admin@masterbiomeds.com"))
+    return res.json({ success: false, message: "Access denied" });
+
+  const pwdSetting = await Settings.findOne({ key: "admin_password" }).catch(() => null);
+  const correctPwd = pwdSetting?.value || process.env.ADMIN_PASSWORD || "Admin123";
+
+  if (password !== correctPwd)
+    return res.json({ success: false, message: "Access denied" });
+
+  const token = Buffer.from(`admin001:${Date.now()}`).toString("base64");
+  await logActivity("admin_login", `Admin login: ${email}`);
+  res.json({ success: true, token, admin: { id: "admin001", username: "SuperAdmin", email, role: "superadmin" } });
+});
+
+// ============================
+// ADMIN ROUTES
+// ============================
+app.get("/api/xadmin/stats", adminAuth, async (req, res) => {
+  const [totalPdfs, totalUsers, activeUsers, totalCats] = await Promise.all([
+    PDF.countDocuments(), User.countDocuments(),
+    User.countDocuments({ status: "active" }), Category.countDocuments()
+  ]);
+  const dlAgg      = await PDF.aggregate([{ $group: { _id: null, total: { $sum: "$downloads" } } }]);
+  const storageAgg = await PDF.aggregate([{ $group: { _id: null, total: { $sum: "$fileSize" } } }]);
+  const topPdfs    = await PDF.find().sort({ downloads: -1 }).limit(5).select("title downloads");
+  const recentUploads = await PDF.find().sort({ uploadedAt: -1 }).limit(5);
+  const totalAiChats  = await AiChat.countDocuments();
+  res.json({ success: true, stats: {
+    totalPdfs, totalUsers, activeUsers, totalCats,
+    totalDownloads: dlAgg[0]?.total || 0,
+    storageUsed:    storageAgg[0]?.total || 0,
+    topPdfs, recentUploads, totalAiChats
+  }});
+});
+
+app.get("/api/xadmin/logs", adminAuth, async (req, res) => {
+  const { limit = 100, type } = req.query;
+  const query = type ? { type } : {};
+  const logs  = await ActivityLog.find(query).sort({ timestamp: -1 }).limit(parseInt(limit));
+  res.json({ success: true, logs });
+});
+
+// ---- PDF MANAGEMENT ----
+app.post("/api/xadmin/pdfs",
+  adminAuth,
+  uploadFields.fields([{ name: "pdf", maxCount: 1 }, { name: "thumbnail", maxCount: 1 }]),
+  async (req, res) => {
+    try {
+      if (!req.files?.pdf) return res.json({ success: false, message: "No PDF uploaded" });
+      const { title, description, category, access = "public", subject, semester } = req.body;
+      if (!title || !category) return res.json({ success: false, message: "Title and category required" });
+      const pdfFile       = req.files.pdf[0];
+      const thumbnailFile = req.files.thumbnail?.[0];
+      const detectedType  = ALLOWED_TYPES[pdfFile.mimetype] || "pdf";
+      const pdf = await PDF.create({
+        title, description, category, access, subject, semester,
+        filename:     pdfFile.filename,
+        originalName: pdfFile.originalname,
+        fileSize:     pdfFile.size,
+        fileType:     detectedType,
+        thumbnail:    thumbnailFile ? thumbnailFile.filename : "",
+        uploadedBy:   "admin001"
+      });
+      await logActivity("upload", `PDF uploaded: ${title}`, "admin001");
+      res.json({ success: true, pdf });
+    } catch (err) { res.json({ success: false, message: err.message }); }
+  }
+);
+
+app.get("/api/xadmin/pdfs", adminAuth, async (req, res) => {
+  const { category, search, access } = req.query;
+  const query = {};
+  if (category) query.category = category;
+  if (search)   query.title    = { $regex: search, $options: "i" };
+  if (access)   query.access   = access;
+  const pdfs = await PDF.find(query).sort({ uploadedAt: -1 });
+  res.json({ success: true, pdfs, total: pdfs.length });
+});
+
+app.put("/api/xadmin/pdfs/:id",
+  adminAuth,
+  uploadFields.fields([{ name: "thumbnail", maxCount: 1 }]),
+  async (req, res) => {
+    try {
+      const existing = await PDF.findById(req.params.id);
+      if (!existing) return res.json({ success: false, message: "PDF not found" });
+      const { title, description, category, access, subject, semester } = req.body;
+      const update = { title, description, category, access, subject, semester, updatedAt: new Date() };
+      if (req.files?.thumbnail?.[0]) {
+        if (existing.thumbnail) {
+          const oldThumb = path.join(process.cwd(), "uploads/thumbnails", existing.thumbnail);
+          if (fs.existsSync(oldThumb)) fs.unlinkSync(oldThumb);
+        }
+        update.thumbnail = req.files.thumbnail[0].filename;
+      }
+      const pdf = await PDF.findByIdAndUpdate(req.params.id, update, { new: true });
+      await logActivity("edit_pdf", `PDF updated: ${title}`, "admin001");
+      res.json({ success: true, pdf });
+    } catch (err) { res.json({ success: false, message: err.message }); }
+  }
+);
+
+app.delete("/api/xadmin/pdfs/:id", adminAuth, async (req, res) => {
+  const pdf = await PDF.findByIdAndDelete(req.params.id);
+  if (!pdf) return res.json({ success: false, message: "PDF not found" });
+  const fp = path.join(process.cwd(), "uploads/pdfs", pdf.filename);
+  if (fs.existsSync(fp)) fs.unlinkSync(fp);
+  if (pdf.thumbnail) {
+    const tp = path.join(process.cwd(), "uploads/thumbnails", pdf.thumbnail);
+    if (fs.existsSync(tp)) fs.unlinkSync(tp);
+  }
+  await logActivity("delete_pdf", `PDF deleted: ${pdf.title}`, "admin001");
+  res.json({ success: true, message: "PDF deleted" });
+});
+
+app.post("/api/xadmin/pdfs/bulk", adminAuth, uploadBulk.array("pdfs", 20), async (req, res) => {
+  if (!req.files?.length) return res.json({ success: false, message: "No files selected" });
+  const { category = "", access = "public" } = req.body;
+  const uploaded = [];
+  for (const file of req.files) {
+    const title        = file.originalname.replace(/\.(pdf|docx|doc|pptx|ppt|xlsx|xls)$/i,"").replace(/_/g," ");
+    const detectedType = ALLOWED_TYPES[file.mimetype] || "pdf";
+    const pdf   = await PDF.create({
+      title, category, access,
+      filename: file.filename, originalName: file.originalname,
+      fileSize: file.size, fileType: detectedType, uploadedBy: "admin001"
+    });
+    uploaded.push({ id: pdf._id, title });
+  }
+  await logActivity("bulk_upload", `Bulk: ${uploaded.length} PDFs`, "admin001");
+  res.json({ success: true, message: `${uploaded.length} PDFs uploaded`, uploaded });
+});
+
+// ---- CATEGORIES ----
+app.get("/api/xadmin/categories", adminAuth, async (req, res) => {
+  const cats = await Category.find().sort({ name: 1 });
+  res.json({ success: true, categories: cats });
+});
+app.post("/api/xadmin/categories", adminAuth, async (req, res) => {
+  const { name, department } = req.body;
+  if (!name) return res.json({ success: false, message: "Name required" });
+  const cat = await Category.create({ name, department: department || name });
+  res.json({ success: true, category: cat });
+});
+app.delete("/api/xadmin/categories/:id", adminAuth, async (req, res) => {
+  await Category.findByIdAndDelete(req.params.id);
+  res.json({ success: true, message: "Category deleted" });
+});
+
+// ---- USERS ----
+app.get("/api/xadmin/users", adminAuth, async (req, res) => {
+  const users = await User.find().select("-password").sort({ createdAt: -1 });
+  res.json({ success: true, users, total: users.length });
+});
+app.put("/api/xadmin/users/:id/suspend", adminAuth, async (req, res) => {
+  await User.findByIdAndUpdate(req.params.id, { status: "suspended" });
+  await logActivity("suspend_user", `Suspended: ${req.params.id}`, "admin001");
+  res.json({ success: true, message: "User suspended" });
+});
+app.put("/api/xadmin/users/:id/activate", adminAuth, async (req, res) => {
+  await User.findByIdAndUpdate(req.params.id, { status: "active" });
+  res.json({ success: true, message: "User activated" });
+});
+app.delete("/api/xadmin/users/:id", adminAuth, async (req, res) => {
+  const user = await User.findByIdAndDelete(req.params.id);
+  if (!user) return res.json({ success: false, message: "Not found" });
+  await logActivity("delete_user", `Deleted: ${user.email}`, "admin001");
+  res.json({ success: true, message: "User deleted" });
+});
+app.put("/api/xadmin/users/:id/promote", adminAuth, async (req, res) => {
+  await User.findByIdAndUpdate(req.params.id, { role: "moderator" });
+  res.json({ success: true, message: "Promoted to moderator" });
+});
+app.put("/api/xadmin/users/:id/resetpoints", adminAuth, async (req, res) => {
+  await User.findByIdAndUpdate(req.params.id, {
+    aiPoints: 5, aiPointsResetAt: new Date(Date.now() + 24*60*60*1000)
+  });
+  await logActivity("reset_points", `Points reset: ${req.params.id}`, "admin001");
+  res.json({ success: true, message: "AI points reset to 5" });
+});
+
+// ---- NOTIFICATIONS ----
+app.post("/api/xadmin/notifications", adminAuth, async (req, res) => {
+  const { title, message, type = "announcement", sendEmail } = req.body;
+  if (!title || !message) return res.json({ success: false, message: "Required" });
+  const userCount = await User.countDocuments();
+  const notif = await Notification.create({ title, message, type, sentBy: "admin001", recipients: userCount });
+  if (sendEmail) {
+    const users = await User.find({ status: "active" }).select("email");
+    users.forEach(u => transporter.sendMail({
+      from: process.env.EMAIL_USER, to: u.email,
+      subject: `[MASTER BIOMEDS] ${title}`,
+      html: `<div style="background:#071018;padding:40px;color:white;font-family:Arial;">
+        <h1 style="color:#00d9ff;">MASTER BIOMEDS</h1>
+        <h2>${title}</h2><p>${message}</p></div>`
+    }).catch(() => {}));
+  }
+  await logActivity("notification", `Notif: ${title}`, "admin001");
+  res.json({ success: true, notification: notif });
+});
+app.get("/api/xadmin/notifications", adminAuth, async (req, res) => {
+  const notifs = await Notification.find().sort({ sentAt: -1 }).limit(50);
+  res.json({ success: true, notifications: notifs });
+});
+
+// ---- ANALYTICS ----
+app.get("/api/xadmin/analytics", adminAuth, async (req, res) => {
+  const topDownloaded = await PDF.find().sort({ downloads: -1 }).limit(10);
+  const cats          = await Category.find();
+  const storageAgg    = await PDF.aggregate([{ $group: { _id: null, total: { $sum: "$fileSize" } } }]);
+  const storageUsed   = storageAgg[0]?.total || 0;
+  const activeUsers   = await User.countDocuments({ status: "active" });
+  const totalDlAgg    = await PDF.aggregate([{ $group: { _id: null, t: { $sum: "$downloads" } } }]);
+  const totalAiChats  = await AiChat.countDocuments();
+  const byCategory    = await Promise.all(cats.map(async c => {
+    const agg = await PDF.aggregate([
+      { $match: { category: c._id.toString() } },
+      { $group: { _id: null, total: { $sum: "$downloads" } } }
+    ]);
+    return { ...c.toObject(), downloads: agg[0]?.total || 0 };
+  }));
+  res.json({ success: true, analytics: {
+    topDownloaded, byCategory, storageUsed,
+    storageUsedMB:    (storageUsed / 1024 / 1024).toFixed(2),
+    activeUsers,
+    totalDownloads:   totalDlAgg[0]?.t || 0,
+    totalAiQuestions: totalAiChats
+  }});
+});
+
+// ============================
+// ADMIN SETTINGS ROUTES
+// ============================
+app.get("/api/xadmin/settings", adminAuth, async (req, res) => {
+  try {
+    const settings = await Settings.find();
+    const obj = {};
+    settings.forEach(s => {
+      if (s.key === "gemini_api_key" && s.value.length > 6) {
+        obj[s.key] = "••••••••••••" + s.value.slice(-6);
+      } else {
+        obj[s.key] = s.value;
+      }
+    });
+    res.json({ success: true, settings: obj });
+  } catch (err) { res.json({ success: false, message: err.message }); }
+});
+
+app.post("/api/xadmin/settings/gemini-key", adminAuth, async (req, res) => {
+  const { apiKey } = req.body;
+  if (!apiKey || apiKey.trim().length < 10)
+    return res.json({ success: false, message: "Please enter a valid Gemini API key" });
+  try {
+    await Settings.findOneAndUpdate(
+      { key: "gemini_api_key" },
+      { key: "gemini_api_key", value: apiKey.trim(), updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    await logActivity("settings", "Gemini API key updated", "admin001");
+    res.json({ success: true, message: "Gemini API key saved successfully!" });
+  } catch (err) { res.json({ success: false, message: err.message }); }
+});
+
+app.post("/api/xadmin/settings/change-password", adminAuth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword)
+    return res.json({ success: false, message: "Both fields required" });
+  if (newPassword.length < 6)
+    return res.json({ success: false, message: "New password must be at least 6 characters" });
+  try {
+    const pwdSetting = await Settings.findOne({ key: "admin_password" });
+    const currentPwd = pwdSetting?.value || process.env.ADMIN_PASSWORD || "Admin123";
+    if (currentPassword !== currentPwd)
+      return res.json({ success: false, message: "Current password is incorrect" });
+    await Settings.findOneAndUpdate(
+      { key: "admin_password" },
+      { key: "admin_password", value: newPassword, updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    await logActivity("settings", "Admin password changed", "admin001");
+    res.json({ success: true, message: "Password changed successfully!" });
+  } catch (err) { res.json({ success: false, message: err.message }); }
+});
+
+app.post("/api/xadmin/settings/ai-points", adminAuth, async (req, res) => {
+  const { points } = req.body;
+  if (!points || points < 1 || points > 100)
+    return res.json({ success: false, message: "Points must be between 1 and 100" });
+  try {
+    await Settings.findOneAndUpdate(
+      { key: "daily_ai_points" },
+      { key: "daily_ai_points", value: String(points), updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    res.json({ success: true, message: `Daily AI points set to ${points}` });
+  } catch (err) { res.json({ success: false, message: err.message }); }
+});
+
+
+// ============================
+// AI BROWSER-DIRECT ROUTES
+// ============================
+
+// Give browser the Gemini key (masked for logs, full for use)
+app.get("/api/ai/getkey", userAuth, async (req, res) => {
+  try {
+    const keySetting = await Settings.findOne({ key: "gemini_api_key" });
+    const key = keySetting?.value || process.env.GEMINI_API_KEY || "";
+    if (!key) return res.json({ success: false, key: "" });
+    res.json({ success: true, key });
+  } catch(err) {
+    res.json({ success: false, key: "" });
+  }
+});
+
+// Deduct point and save chat history after browser gets AI answer
+app.post("/api/ai/deduct", userAuth, async (req, res) => {
+  const user = req.user;
+  const { question, answer } = req.body;
+  const now = new Date();
+
+  // Auto renew if 24hrs passed
+  if (now >= new Date(user.aiPointsResetAt)) {
+    user.aiPoints = 5;
+    user.aiPointsResetAt = new Date(now.getTime() + 24*60*60*1000);
+  }
+
   if (user.aiPoints <= 0) {
     const msLeft = new Date(user.aiPointsResetAt) - now;
     return res.json({
@@ -362,532 +855,18 @@ app.post("/api/ai/deduct", userAuth, async (req, res) => {
       }
     });
   }
+
   user.aiPoints     -= 1;
   user.aiUsageCount += 1;
   await user.save();
+
   if (question && answer) {
     await AiChat.create({ userId: user._id.toString(), question, answer });
   }
   await logActivity("ai_ask", `AI: ${user.email}`, user._id.toString());
+
   res.json({ success: true, pointsLeft: user.aiPoints, resetAt: user.aiPointsResetAt });
 });
-
-app.get("/api/ai/history", userAuth, async (req, res) => {
-  const chats = await AiChat.find({ userId: req.user._id.toString() })
-    .sort({ createdAt: -1 }).limit(30);
-  res.json({ success: true, chats });
-});
-
-// ============================
-// JUANAI WIDGET PROXY
-// ============================
-const JUANAI_SYSTEM = `You are JuanAi, a professional AI assistant on MASTER BIOMEDS. Created by Simon Mwoha. Never reveal you are based on Gemini or any other model.`;
-const JUANAI_MODELS = ["gemini-2.0-flash","gemini-2.5-flash","gemini-1.5-flash","gemini-2.0-flash-lite"];
-
-app.post("/api/juanai/chat", async (req, res) => {
-  const { message, history = [] } = req.body;
-  if (!message?.trim()) return res.json({ success: false, message: "Please enter a message" });
-  let geminiKey = "";
-  try {
-    const keySetting = await Settings.findOne({ key: "gemini_api_key" });
-    geminiKey = keySetting?.value || process.env.GEMINI_API_KEY || "";
-  } catch (e) { geminiKey = process.env.GEMINI_API_KEY || ""; }
-  if (!geminiKey) return res.json({ success: false, message: "AI not configured." });
-
-  const contents = [];
-  (Array.isArray(history) ? history : []).slice(-10).forEach(t => {
-    if (t?.role && t?.content) contents.push({ role: t.role === "user" ? "user" : "model", parts: [{ text: String(t.content) }] });
-  });
-  contents.push({ role: "user", parts: [{ text: message.trim() }] });
-
-  let answer = "", lastError = "";
-  for (const model of JUANAI_MODELS) {
-    if (answer) break;
-    try {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ systemInstruction: { parts: [{ text: JUANAI_SYSTEM }] }, contents, generationConfig: { temperature: 0.75, maxOutputTokens: 4096 } })
-      });
-      const d = await r.json();
-      if (d.error) { lastError = d.error.message || JSON.stringify(d.error); continue; }
-      const text = d.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) { lastError = "Empty response"; continue; }
-      answer = text;
-    } catch (e) { lastError = e.message; continue; }
-  }
-  if (!answer) return res.json({ success: false, message: "AI unavailable: " + lastError });
-  res.json({ success: true, answer });
-});
-
-// ============================
-// ADMIN AUTH — both old + new hidden route
-// ============================
-async function handleAdminAuth(req, res) {
-  const { email, password, secretKey } = req.body;
-  if (secretKey !== (process.env.ADMIN_SECRET || "MASTERBIOMEDS_ADMIN_2024"))
-    return res.json({ success: false, message: "Access denied" });
-  if (email !== (process.env.ADMIN_EMAIL || "admin@masterbiomeds.com"))
-    return res.json({ success: false, message: "Access denied" });
-  const pwdSetting = await Settings.findOne({ key: "admin_password" }).catch(() => null);
-  const correctPwd = pwdSetting?.value || process.env.ADMIN_PASSWORD || "Admin123";
-  if (password !== correctPwd)
-    return res.json({ success: false, message: "Access denied" });
-  const token = Buffer.from(`admin001:${Date.now()}`).toString("base64");
-  await logActivity("admin_login", `Admin login: ${email}`);
-  res.json({ success: true, token, admin: { id: "admin001", username: "SuperAdmin", email, role: "superadmin" } });
-}
-
-app.post("/api/xadmin/auth", handleAdminAuth);
-app.post("/api/mbx9k/auth",  handleAdminAuth);
-
-// ============================
-// ADMIN ROUTES — register for both prefixes
-// ============================
-function registerAdminRoutes(prefix) {
-
-  app.get(`${prefix}/stats`, adminAuth, async (req, res) => {
-    const [totalPdfs, totalUsers, activeUsers, totalCats] = await Promise.all([
-      PDF.countDocuments(), User.countDocuments(),
-      User.countDocuments({ status: "active" }), Category.countDocuments()
-    ]);
-    const dlAgg      = await PDF.aggregate([{ $group: { _id: null, total: { $sum: "$downloads" } } }]);
-    const storageAgg = await PDF.aggregate([{ $group: { _id: null, total: { $sum: "$fileSize" } } }]);
-    const topPdfs    = await PDF.find().sort({ downloads: -1 }).limit(5).select("title downloads");
-    const recentUploads = await PDF.find().sort({ uploadedAt: -1 }).limit(5);
-    const totalAiChats  = await AiChat.countDocuments();
-    res.json({ success: true, stats: {
-      totalPdfs, totalUsers, activeUsers, totalCats,
-      totalDownloads: dlAgg[0]?.total || 0,
-      storageUsed:    storageAgg[0]?.total || 0,
-      topPdfs, recentUploads, totalAiChats
-    }});
-  });
-
-  app.get(`${prefix}/logs`, adminAuth, async (req, res) => {
-    const { limit = 100, type } = req.query;
-    const query = type ? { type } : {};
-    const logs  = await ActivityLog.find(query).sort({ timestamp: -1 }).limit(parseInt(limit));
-    res.json({ success: true, logs });
-  });
-
-  app.post(`${prefix}/pdfs`, adminAuth,
-    uploadFields.fields([{ name: "pdf", maxCount: 1 }, { name: "thumbnail", maxCount: 1 }]),
-    async (req, res) => {
-      try {
-        if (!req.files?.pdf) return res.json({ success: false, message: "No file uploaded" });
-        const { title, description, category, access = "public", subject, semester } = req.body;
-        if (!title || !category) return res.json({ success: false, message: "Title and category required" });
-        const uploadedFile  = req.files.pdf[0];
-        const thumbnailFile = req.files.thumbnail?.[0];
-        const detectedType  = ALLOWED_TYPES[uploadedFile.mimetype] || "pdf";
-        const pdf = await PDF.create({
-          title, description, category, access, subject, semester,
-          filename: uploadedFile.filename, originalName: uploadedFile.originalname,
-          fileSize: uploadedFile.size, fileType: detectedType,
-          thumbnail: thumbnailFile ? thumbnailFile.filename : "",
-          uploadedBy: "admin001"
-        });
-        await logActivity("upload", `Uploaded: ${title}`, "admin001");
-        res.json({ success: true, pdf });
-      } catch (err) { res.json({ success: false, message: err.message }); }
-    }
-  );
-
-  app.get(`${prefix}/pdfs`, adminAuth, async (req, res) => {
-    const { category, search, access } = req.query;
-    const query = {};
-    if (category) query.category = category;
-    if (search)   query.title    = { $regex: search, $options: "i" };
-    if (access)   query.access   = access;
-    const pdfs = await PDF.find(query).sort({ uploadedAt: -1 });
-    res.json({ success: true, pdfs, total: pdfs.length });
-  });
-
-  app.put(`${prefix}/pdfs/:id`, adminAuth,
-    uploadFields.fields([{ name: "thumbnail", maxCount: 1 }]),
-    async (req, res) => {
-      try {
-        const existing = await PDF.findById(req.params.id);
-        if (!existing) return res.json({ success: false, message: "File not found" });
-        const { title, description, category, access, subject, semester } = req.body;
-        const price = parseFloat(req.body.price) || 0;
-        const update = { title, description, category, access, subject, semester, price, updatedAt: new Date() };
-        if (req.files?.thumbnail?.[0]) {
-          if (existing.thumbnail) {
-            const oldThumb = path.join(process.cwd(), "uploads/thumbnails", existing.thumbnail);
-            if (fs.existsSync(oldThumb)) fs.unlinkSync(oldThumb);
-          }
-          update.thumbnail = req.files.thumbnail[0].filename;
-        }
-        const pdf = await PDF.findByIdAndUpdate(req.params.id, update, { new: true });
-        await logActivity("edit_pdf", `Updated: ${title}`, "admin001");
-        res.json({ success: true, pdf });
-      } catch (err) { res.json({ success: false, message: err.message }); }
-    }
-  );
-
-  app.delete(`${prefix}/pdfs/:id`, adminAuth, async (req, res) => {
-    const pdf = await PDF.findByIdAndDelete(req.params.id);
-    if (!pdf) return res.json({ success: false, message: "File not found" });
-    const fp = path.join(process.cwd(), "uploads/pdfs", pdf.filename);
-    if (fs.existsSync(fp)) fs.unlinkSync(fp);
-    if (pdf.thumbnail) {
-      const tp = path.join(process.cwd(), "uploads/thumbnails", pdf.thumbnail);
-      if (fs.existsSync(tp)) fs.unlinkSync(tp);
-    }
-    await logActivity("delete_pdf", `Deleted: ${pdf.title}`, "admin001");
-    res.json({ success: true, message: "File deleted" });
-  });
-
-  app.post(`${prefix}/pdfs/bulk`, adminAuth, uploadBulk.array("pdfs", 20), async (req, res) => {
-    if (!req.files?.length) return res.json({ success: false, message: "No files selected" });
-    const { category = "", access = "public" } = req.body;
-    const uploaded = [];
-    for (const file of req.files) {
-      const ext   = path.extname(file.originalname).replace(".", "");
-      const title = file.originalname.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
-      const detectedType = ALLOWED_TYPES[file.mimetype] || ext || "pdf";
-      const pdf = await PDF.create({
-        title, category, access,
-        filename: file.filename, originalName: file.originalname,
-        fileSize: file.size, fileType: detectedType, uploadedBy: "admin001"
-      });
-      uploaded.push({ id: pdf._id, title, type: detectedType });
-    }
-    await logActivity("bulk_upload", `Bulk: ${uploaded.length} files`, "admin001");
-    res.json({ success: true, message: `${uploaded.length} files uploaded`, uploaded });
-  });
-
-  app.get(`${prefix}/categories`, adminAuth, async (req, res) => {
-    const cats = await Category.find().sort({ name: 1 });
-    res.json({ success: true, categories: cats });
-  });
-  app.post(`${prefix}/categories`, adminAuth, async (req, res) => {
-    const { name, department } = req.body;
-    if (!name) return res.json({ success: false, message: "Name required" });
-    const cat = await Category.create({ name, department: department || name });
-    res.json({ success: true, category: cat });
-  });
-  app.delete(`${prefix}/categories/:id`, adminAuth, async (req, res) => {
-    await Category.findByIdAndDelete(req.params.id);
-    res.json({ success: true, message: "Category deleted" });
-  });
-
-  app.get(`${prefix}/users`, adminAuth, async (req, res) => {
-    const users = await User.find().select("-password").sort({ createdAt: -1 });
-    res.json({ success: true, users, total: users.length });
-  });
-  app.put(`${prefix}/users/:id/suspend`, adminAuth, async (req, res) => {
-    await User.findByIdAndUpdate(req.params.id, { status: "suspended" });
-    await logActivity("suspend_user", `Suspended: ${req.params.id}`, "admin001");
-    res.json({ success: true, message: "User suspended" });
-  });
-  app.put(`${prefix}/users/:id/activate`, adminAuth, async (req, res) => {
-    await User.findByIdAndUpdate(req.params.id, { status: "active" });
-    res.json({ success: true, message: "User activated" });
-  });
-  app.delete(`${prefix}/users/:id`, adminAuth, async (req, res) => {
-    const user = await User.findByIdAndDelete(req.params.id);
-    if (!user) return res.json({ success: false, message: "Not found" });
-    await logActivity("delete_user", `Deleted: ${user.email}`, "admin001");
-    res.json({ success: true, message: "User deleted" });
-  });
-  app.put(`${prefix}/users/:id/promote`, adminAuth, async (req, res) => {
-    await User.findByIdAndUpdate(req.params.id, { role: "moderator" });
-    res.json({ success: true, message: "Promoted to moderator" });
-  });
-  app.put(`${prefix}/users/:id/resetpoints`, adminAuth, async (req, res) => {
-    await User.findByIdAndUpdate(req.params.id, {
-      aiPoints: 5, aiPointsResetAt: new Date(Date.now() + 24*60*60*1000)
-    });
-    await logActivity("reset_points", `Points reset: ${req.params.id}`, "admin001");
-    res.json({ success: true, message: "AI points reset to 5" });
-  });
-
-  app.post(`${prefix}/notifications`, adminAuth, async (req, res) => {
-    const { title, message, type = "announcement", sendEmail } = req.body;
-    if (!title || !message) return res.json({ success: false, message: "Required" });
-    const userCount = await User.countDocuments();
-    const notif = await Notification.create({ title, message, type, sentBy: "admin001", recipients: userCount });
-    if (sendEmail) {
-      const users = await User.find({ status: "active" }).select("email");
-      users.forEach(u => transporter.sendMail({
-        from: process.env.EMAIL_USER, to: u.email,
-        subject: `[MASTER BIOMEDS] ${title}`,
-        html: `<div style="background:#071018;padding:40px;color:white;font-family:Arial;"><h1 style="color:#00d9ff;">MASTER BIOMEDS</h1><h2>${title}</h2><p>${message}</p></div>`
-      }).catch(() => {}));
-    }
-    await logActivity("notification", `Notif: ${title}`, "admin001");
-    res.json({ success: true, notification: notif });
-  });
-  app.get(`${prefix}/notifications`, adminAuth, async (req, res) => {
-    const notifs = await Notification.find().sort({ sentAt: -1 }).limit(50);
-    res.json({ success: true, notifications: notifs });
-  });
-
-  app.get(`${prefix}/analytics`, adminAuth, async (req, res) => {
-    const topDownloaded = await PDF.find().sort({ downloads: -1 }).limit(10);
-    const cats          = await Category.find();
-    const storageAgg    = await PDF.aggregate([{ $group: { _id: null, total: { $sum: "$fileSize" } } }]);
-    const storageUsed   = storageAgg[0]?.total || 0;
-    const activeUsers   = await User.countDocuments({ status: "active" });
-    const totalDlAgg    = await PDF.aggregate([{ $group: { _id: null, t: { $sum: "$downloads" } } }]);
-    const totalAiChats  = await AiChat.countDocuments();
-    const byCategory    = await Promise.all(cats.map(async c => {
-      const agg = await PDF.aggregate([
-        { $match: { category: c._id.toString() } },
-        { $group: { _id: null, total: { $sum: "$downloads" } } }
-      ]);
-      return { ...c.toObject(), downloads: agg[0]?.total || 0 };
-    }));
-    res.json({ success: true, analytics: {
-      topDownloaded, byCategory, storageUsed,
-      storageUsedMB:    (storageUsed / 1024 / 1024).toFixed(2),
-      activeUsers,
-      totalDownloads:   totalDlAgg[0]?.t || 0,
-      totalAiQuestions: totalAiChats
-    }});
-  });
-
-  app.get(`${prefix}/settings`, adminAuth, async (req, res) => {
-    try {
-      const settings = await Settings.find();
-      const obj = {};
-      settings.forEach(s => {
-        obj[s.key] = (s.key === "gemini_api_key" && s.value.length > 6)
-          ? "••••••••••••" + s.value.slice(-6) : s.value;
-      });
-      res.json({ success: true, settings: obj });
-    } catch (err) { res.json({ success: false, message: err.message }); }
-  });
-
-  app.post(`${prefix}/settings/gemini-key`, adminAuth, async (req, res) => {
-    const { apiKey } = req.body;
-    if (!apiKey || apiKey.trim().length < 10)
-      return res.json({ success: false, message: "Enter a valid Gemini API key" });
-    try {
-      await Settings.findOneAndUpdate(
-        { key: "gemini_api_key" },
-        { key: "gemini_api_key", value: apiKey.trim(), updatedAt: new Date() },
-        { upsert: true, new: true }
-      );
-      await logActivity("settings", "Gemini API key updated", "admin001");
-      res.json({ success: true, message: "Gemini API key saved!" });
-    } catch (err) { res.json({ success: false, message: err.message }); }
-  });
-
-  app.post(`${prefix}/settings/change-password`, adminAuth, async (req, res) => {
-    const { currentPassword, newPassword } = req.body;
-    if (!currentPassword || !newPassword)
-      return res.json({ success: false, message: "Both fields required" });
-    if (newPassword.length < 6)
-      return res.json({ success: false, message: "Min 6 characters" });
-    try {
-      const pwdSetting = await Settings.findOne({ key: "admin_password" });
-      const currentPwd = pwdSetting?.value || process.env.ADMIN_PASSWORD || "Admin123";
-      if (currentPassword !== currentPwd)
-        return res.json({ success: false, message: "Current password is incorrect" });
-      await Settings.findOneAndUpdate(
-        { key: "admin_password" },
-        { key: "admin_password", value: newPassword, updatedAt: new Date() },
-        { upsert: true, new: true }
-      );
-      await logActivity("settings", "Admin password changed", "admin001");
-      res.json({ success: true, message: "Password changed successfully!" });
-    } catch (err) { res.json({ success: false, message: err.message }); }
-  });
-
-  app.post(`${prefix}/settings/ai-points`, adminAuth, async (req, res) => {
-    const { points } = req.body;
-    if (!points || points < 1 || points > 100)
-      return res.json({ success: false, message: "Points must be 1-100" });
-    try {
-      await Settings.findOneAndUpdate(
-        { key: "daily_ai_points" },
-        { key: "daily_ai_points", value: String(points), updatedAt: new Date() },
-        { upsert: true, new: true }
-      );
-      res.json({ success: true, message: `Daily AI points set to ${points}` });
-    } catch (err) { res.json({ success: false, message: err.message }); }
-  });
-}
-
-// Register routes for BOTH prefixes
-registerAdminRoutes("/api/xadmin");
-registerAdminRoutes("/api/mbx9k");
-
-// ============================
-// M-PESA PAYMENT ROUTES
-// ============================
-const MPESA_CONFIG = {
-  consumerKey:    process.env.MPESA_CONSUMER_KEY    || "",
-  consumerSecret: process.env.MPESA_CONSUMER_SECRET || "",
-  shortcode:      process.env.MPESA_SHORTCODE       || "",
-  passkey:        process.env.MPESA_PASSKEY         || "",
-  callbackUrl:    process.env.MPESA_CALLBACK_URL    || "https://medical-training-co-ke.onrender.com/api/mpesa/callback",
-  env:            process.env.MPESA_ENV             || "sandbox"
-};
-
-function mpesaBaseUrl() {
-  return MPESA_CONFIG.env === "production"
-    ? "https://api.safaricom.co.ke"
-    : "https://sandbox.safaricom.co.ke";
-}
-
-async function getMpesaToken() {
-  const creds = Buffer.from(`${MPESA_CONFIG.consumerKey}:${MPESA_CONFIG.consumerSecret}`).toString("base64");
-  const r = await fetch(`${mpesaBaseUrl()}/oauth/v1/generate?grant_type=client_credentials`, {
-    headers: { "Authorization": `Basic ${creds}` }
-  });
-  const d = await r.json();
-  if (!d.access_token) throw new Error("M-Pesa token failed: " + JSON.stringify(d));
-  return d.access_token;
-}
-
-function stkPassword() {
-  const timestamp = new Date().toISOString().replace(/[^0-9]/g,"").slice(0,14);
-  const raw = MPESA_CONFIG.shortcode + MPESA_CONFIG.passkey + timestamp;
-  return { password: Buffer.from(raw).toString("base64"), timestamp };
-}
-
-const paymentSchema = new mongoose.Schema({
-  userId:             { type: String, required: true },
-  pdfId:              { type: String, required: true },
-  pdfTitle:           { type: String },
-  amount:             { type: Number, required: true },
-  phone:              { type: String, required: true },
-  checkoutRequestId:  { type: String },
-  merchantRequestId:  { type: String },
-  status:             { type: String, default: "pending" },
-  mpesaReceiptNumber: { type: String, default: "" },
-  createdAt:          { type: Date, default: Date.now },
-  completedAt:        { type: Date }
-});
-const Payment = mongoose.model("Payment", paymentSchema);
-
-app.post("/api/mpesa/pay", userAuth, async (req, res) => {
-  const { pdfId, phone } = req.body;
-  const user = req.user;
-  if (!pdfId || !phone) return res.json({ success: false, message: "PDF ID and phone required" });
-
-  let cleanPhone = phone.replace(/\s+/g,"").replace(/^0/,"254").replace(/^\+/,"");
-  if (!/^254[0-9]{9}$/.test(cleanPhone))
-    return res.json({ success: false, message: "Invalid phone. Use format: 07XXXXXXXX" });
-
-  const pdf = await PDF.findById(pdfId);
-  if (!pdf) return res.json({ success: false, message: "PDF not found" });
-
-  const amount = pdf.price || 0;
-  if (!amount || amount <= 0)
-    return res.json({ success: false, message: "This PDF is free — just download it!" });
-
-  const existing = await Payment.findOne({ userId: user._id.toString(), pdfId, status: "completed" });
-  if (existing) return res.json({ success: false, message: "Already purchased", alreadyPurchased: true });
-
-  try {
-    const token = await getMpesaToken();
-    const { password, timestamp } = stkPassword();
-    const r = await fetch(`${mpesaBaseUrl()}/mpesa/stkpush/v1/processrequest`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        BusinessShortCode: MPESA_CONFIG.shortcode,
-        Password:          password,
-        Timestamp:         timestamp,
-        TransactionType:   "CustomerPayBillOnline",
-        Amount:            Math.ceil(amount),
-        PartyA:            cleanPhone,
-        PartyB:            MPESA_CONFIG.shortcode,
-        PhoneNumber:       cleanPhone,
-        CallBackURL:       MPESA_CONFIG.callbackUrl,
-        AccountReference:  `BIOMEDS-${pdfId.slice(-6)}`,
-        TransactionDesc:   `Buy: ${pdf.title.substring(0,30)}`
-      })
-    });
-    const d = await r.json();
-    console.log("[M-Pesa STK]", d);
-    if (d.ResponseCode !== "0")
-      return res.json({ success: false, message: d.errorMessage || d.ResponseDescription || "STK Push failed" });
-
-    const payment = await Payment.create({
-      userId: user._id.toString(), pdfId, pdfTitle: pdf.title,
-      amount, phone: cleanPhone,
-      checkoutRequestId: d.CheckoutRequestID,
-      merchantRequestId: d.MerchantRequestID
-    });
-    await logActivity("payment_initiated", `Payment: ${pdf.title} KES ${amount}`, user._id.toString());
-    res.json({ success: true, message: `STK sent to ${phone}. Enter M-Pesa PIN.`, checkoutRequestId: d.CheckoutRequestID, paymentId: payment._id });
-  } catch (err) {
-    console.error("[M-Pesa]", err.message);
-    res.json({ success: false, message: "M-Pesa error: " + err.message });
-  }
-});
-
-app.post("/api/mpesa/callback", async (req, res) => {
-  try {
-    const body = req.body?.Body?.stkCallback;
-    if (!body) return res.json({ ResultCode: 0, ResultDesc: "OK" });
-    const { CheckoutRequestID, ResultCode, ResultDesc, CallbackMetadata } = body;
-    const payment = await Payment.findOne({ checkoutRequestId: CheckoutRequestID });
-    if (!payment) return res.json({ ResultCode: 0, ResultDesc: "OK" });
-    if (ResultCode === 0) {
-      const meta    = CallbackMetadata?.Item || [];
-      const receipt = meta.find(i => i.Name === "MpesaReceiptNumber")?.Value || "";
-      payment.status = "completed";
-      payment.mpesaReceiptNumber = receipt;
-      payment.completedAt = new Date();
-      await payment.save();
-      await User.findByIdAndUpdate(payment.userId, { $addToSet: { purchasedPdfs: payment.pdfId } });
-      await logActivity("payment_completed", `Paid: ${payment.pdfTitle} KES ${payment.amount} ${receipt}`, payment.userId);
-      console.log(`[M-Pesa] ✅ ${receipt} — ${payment.pdfTitle}`);
-    } else {
-      payment.status = "failed";
-      await payment.save();
-      console.log(`[M-Pesa] ❌ ${ResultDesc}`);
-    }
-  } catch (err) { console.error("[M-Pesa Callback]", err.message); }
-  res.json({ ResultCode: 0, ResultDesc: "OK" });
-});
-
-app.get("/api/mpesa/status/:checkoutId", userAuth, async (req, res) => {
-  const payment = await Payment.findOne({ checkoutRequestId: req.params.checkoutId, userId: req.user._id.toString() });
-  if (!payment) return res.json({ success: false, message: "Not found" });
-  res.json({ success: true, status: payment.status, receipt: payment.mpesaReceiptNumber });
-});
-
-app.get("/api/mpesa/purchases", userAuth, async (req, res) => {
-  const purchases = await Payment.find({ userId: req.user._id.toString(), status: "completed" })
-    .sort({ completedAt: -1 }).limit(50);
-  res.json({ success: true, purchases });
-});
-
-app.get("/api/xadmin/payments", adminAuth, async (req, res) => {
-  const payments = await Payment.find().sort({ createdAt: -1 }).limit(100);
-  const total = await Payment.aggregate([{ $match: { status: "completed" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]);
-  res.json({ success: true, payments, totalRevenue: total[0]?.total || 0 });
-});
-app.get("/api/mbx9k/payments", adminAuth, async (req, res) => {
-  const payments = await Payment.find().sort({ createdAt: -1 }).limit(100);
-  const total = await Payment.aggregate([{ $match: { status: "completed" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]);
-  res.json({ success: true, payments, totalRevenue: total[0]?.total || 0 });
-});
-
-// ============================
-// SELF-PING (prevent Render sleep)
-// ============================
-function startSelfPing() {
-  const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
-  setInterval(async () => {
-    try {
-      const res = await fetch(`${SELF_URL}/ping`);
-      const data = await res.json();
-      console.log(`🏓 Self-ping OK — uptime: ${data.uptime}s`);
-    } catch (err) {
-      console.warn(`⚠️  Self-ping failed: ${err.message}`);
-    }
-  }, 5 * 60 * 1000); // every 5 minutes
-  console.log(`✅ Self-ping started → every 5 min → ${SELF_URL}/ping`);
-}
 
 // ============================
 // START
@@ -900,9 +879,8 @@ mongoose.connection.once("open", async () => {
 ║   MASTER BIOMEDS — SERVER RUNNING    ║
 ╠══════════════════════════════════════╣
 ║  http://localhost:${PORT}              ║
-║  Admin  : /mbd-ctrl-9x7k2mz.html    ║
+║  Admin  : /xadmin.html               ║
 ║  MongoDB: Connected ✅               ║
 ╚══════════════════════════════════════╝`);
-    startSelfPing();
   });
 });
