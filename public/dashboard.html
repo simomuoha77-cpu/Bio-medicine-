@@ -521,7 +521,7 @@ function pdfCard(p) {
   const thumb = p.thumbnailId ? `/api/thumbnail/${p.thumbnailId}` : (p.thumbnail ? `/uploads/thumbnails/${p.thumbnail}` : null);
   const hasPrice = p.price && p.price > 0;
   const isPurchased = myPurchasedIds.has(p._id);
-  const isPublic = !hasPrice || p.access === "public";
+  const isPublic = !hasPrice;
 
   let actionBtn = "";
   if(isPublic) {
