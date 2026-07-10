@@ -294,10 +294,10 @@ tr:hover td{background:rgba(255,255,255,0.012);}
               </div>
             </div>
             <div class="upload-zone" id="up-zone" style="margin-bottom:14px;">
-              <input type="file" id="up-pdf-file" accept=".pdf" onchange="updateZoneLabel('up-zone','up-pdf-file')">
+              <input type="file" id="up-pdf-file" accept=".pdf,.doc,.docx,.ppt,.pptx,.xlsx,.xls" onchange="updateZoneLabel('up-zone','up-pdf-file')">
               <i class="fa-solid fa-file-arrow-up"></i>
-              <div class="uz-title" id="up-zone-lbl">Click or drag PDF here</div>
-              <div class="uz-sub">Maximum 100MB per file</div>
+              <div class="uz-title" id="up-zone-lbl">Click or drag file here</div>
+              <div class="uz-sub">PDF, Word, PowerPoint, Excel — Max 100MB</div>
             </div>
             <div class="prog-wrap" id="up-prog">
               <div class="prog-txt"><span>Uploading...</span><span id="up-pct">0%</span></div>
@@ -329,9 +329,9 @@ tr:hover td{background:rgba(255,255,255,0.012);}
           <div class="ph"><span class="ph-ttl">Bulk Upload (up to 20)</span></div>
           <div class="pb">
             <div class="upload-zone" id="bulk-zone">
-              <input type="file" id="bulk-files" accept=".pdf" multiple onchange="updateZoneLabel('bulk-zone','bulk-files')">
+              <input type="file" id="bulk-files" accept=".pdf,.doc,.docx,.ppt,.pptx,.xlsx,.xls" multiple onchange="updateZoneLabel('bulk-zone','bulk-files')">
               <i class="fa-solid fa-layer-group"></i>
-              <div class="uz-title" id="bulk-zone-lbl">Select multiple PDFs</div>
+              <div class="uz-title" id="bulk-zone-lbl">Select multiple files</div>
               <div class="uz-sub">Up to 20 files at once</div>
             </div>
             <div class="prog-wrap" id="bulk-prog" style="margin-top:12px;">
@@ -548,6 +548,15 @@ tr:hover td{background:rgba(255,255,255,0.012);}
     <div class="frow one"><div class="fg"><label>Access Level</label>
       <select id="edit-acc"><option value="public">Public</option><option value="premium">Premium</option><option value="restricted">Restricted</option></select>
     </div></div>
+    <div class="frow" style="margin-bottom:14px;">
+      <div class="fg">
+        <label><i class="fa-solid fa-mobile-screen-button" style="color:#00c853;margin-right:4px;"></i>M-Pesa Price (KES)</label>
+        <input type="number" id="edit-price" placeholder="0 = Free" min="0" step="1" value="0">
+      </div>
+      <div class="fg" style="padding-top:22px;">
+        <small style="color:var(--muted);font-size:11px;">Set 0 for free download</small>
+      </div>
+    </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px;">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveEdit()"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
@@ -699,7 +708,7 @@ async function uploadSingle(){
   const file=document.getElementById("up-pdf-file").files[0];
   const title=document.getElementById("up-title").value.trim();
   const cat=document.getElementById("up-cat").value;
-  if(!file){toast("Select a PDF","er");return;}
+  if(!file){toast("Select a file","er");return;}
   if(!title){toast("Title required","er");return;}
   if(!cat){toast("Select a category","er");return;}
   const fd=new FormData();
@@ -708,6 +717,7 @@ async function uploadSingle(){
   fd.append("subject",document.getElementById("up-subj").value);
   fd.append("semester",document.getElementById("up-sem").value);
   fd.append("access",document.getElementById("up-acc").value);
+  fd.append("price",document.getElementById("up-price")?document.getElementById("up-price").value||"0":"0");
   const thumbFile=document.getElementById("up-thumb-file").files[0];
   if(thumbFile)fd.append("thumbnail",thumbFile);
   const iv=simProgress("up-fill","up-pct","up-prog");
@@ -751,7 +761,7 @@ function openEdit(id){
   const pdf=allPdfs.find(p=>p._id===id);if(!pdf)return;
   document.getElementById("edit-id").value=id;document.getElementById("edit-title").value=pdf.title;
   document.getElementById("edit-desc").value=pdf.description||"";document.getElementById("edit-subj").value=pdf.subject||"";
-  document.getElementById("edit-sem").value=pdf.semester||"";document.getElementById("edit-acc").value=pdf.access;
+  document.getElementById("edit-sem").value=pdf.semester||"";document.getElementById("edit-acc").value=pdf.access;if(document.getElementById("edit-price"))document.getElementById("edit-price").value=pdf.price||0;
   document.getElementById("edit-thumb-file").value="";
   const prev=document.getElementById("edit-thumb-prev");let img=prev.querySelector("img.thumb-img");const ph=document.getElementById("edit-thumb-placeholder");
   if(pdf.thumbnail){if(!img){img=document.createElement("img");img.className="thumb-img";img.style.cssText="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;";prev.appendChild(img);}img.src=`/uploads/thumbnails/${pdf.thumbnail}`;if(ph)ph.style.display="none";}
@@ -765,7 +775,7 @@ async function saveEdit(){
   const id=document.getElementById("edit-id").value;const thumbFile=document.getElementById("edit-thumb-file").files[0];
   const fd=new FormData();
   fd.append("title",document.getElementById("edit-title").value);fd.append("description",document.getElementById("edit-desc").value);
-  fd.append("category",document.getElementById("edit-cat").value);fd.append("access",document.getElementById("edit-acc").value);
+  fd.append("category",document.getElementById("edit-cat").value);fd.append("access",document.getElementById("edit-acc").value);fd.append("price",document.getElementById("edit-price")?document.getElementById("edit-price").value||"0":"0");
   fd.append("subject",document.getElementById("edit-subj").value);fd.append("semester",document.getElementById("edit-sem").value);
   if(thumbFile)fd.append("thumbnail",thumbFile);
   try{
