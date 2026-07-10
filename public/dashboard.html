@@ -169,12 +169,6 @@ body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-he
 .pstat-val{font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--accent);}
 .pstat-lbl{font-size:11px;color:var(--muted);margin-top:3px;}
 
-.notif-item{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:10px;transition:border-color .2s;}
-.notif-item.unread{border-color:rgba(0,217,255,0.2);background:rgba(0,217,255,0.03);}
-.notif-type{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--accent);margin-bottom:6px;}
-.notif-title{font-size:14px;font-weight:600;margin-bottom:5px;}
-.notif-msg{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:8px;}
-.notif-time{font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
 /* M-PESA MODAL */
 .mpesa-modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:999;align-items:center;justify-content:center;padding:20px;}
 .mpesa-modal-ov.open{display:flex;}
@@ -285,10 +279,7 @@ body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-he
     <button class="nav-btn" onclick="goTo('library',this)"><i class="fa-solid fa-book-medical"></i> PDF Library</button>
     <button class="nav-btn" onclick="goTo('downloads',this)"><i class="fa-solid fa-download"></i> My Downloads</button>
     <button class="nav-btn" onclick="goTo('purchases',this)"><i class="fa-solid fa-receipt"></i> My Purchases</button>
-    <button class="nav-btn" id="notif-nav-btn" onclick="goTo('notifications',this)">
-      <i class="fa-solid fa-bell"></i> Notifications
-      <span id="notif-badge" style="display:none;background:#ff4757;color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:auto;">0</span>
-    </button>
+    <button class="nav-btn" onclick="goTo('notifications',this)"><i class="fa-solid fa-bell"></i> Notifications<span id="notif-badge" style="display:none;background:#ff4757;color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:auto;">0</span></button>
     <div class="nav-section">AI Tools</div>
     <button class="nav-btn" onclick="goTo('ai',this)" id="ai-nav-btn">
       <i class="fa-solid fa-robot"></i> MedBot AI
@@ -432,9 +423,7 @@ body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-he
       <h2><i class="fa-solid fa-bell" style="color:var(--accent);margin-right:8px;"></i>Notifications</h2>
       <button class="btn btn-outline" onclick="loadNotifications()" style="padding:7px 14px;font-size:12px;"><i class="fa-solid fa-rotate"></i></button>
     </div>
-    <div id="notif-list">
-      <div class="empty"><i class="fa-solid fa-bell-slash"></i><p>No notifications yet</p></div>
-    </div>
+    <div id="notif-list"><div class="empty"><i class="fa-solid fa-bell-slash"></i><p>No notifications yet</p></div></div>
   </div>
 
   <!-- PROFILE -->
@@ -555,7 +544,7 @@ function pdfCard(p) {
   } else {
     const buyBtn = p.price && p.price > 0
       ? `<button class="pdf-buy-btn" onclick="openMpesaModal('${p._id}','${p.title.replace(/'/g,"\'")}',${p.price})"><i class="fa-solid fa-mobile-screen-button"></i> Buy — KES ${p.price}</button>`
-      : `<button class="pdf-buy-btn" style="background:rgba(255,159,67,0.15);color:#ff9f43;cursor:default;"><i class="fa-solid fa-lock"></i> Premium — Price not set</button>`;
+      : `<button class="pdf-buy-btn" style="background:rgba(255,159,67,0.15);color:#ff9f43;cursor:default;"><i class="fa-solid fa-lock"></i> Premium</button>`;
     actionBtn = `
       <button class="pdf-dl-btn" style="opacity:.4;cursor:not-allowed;" disabled><i class="fa-solid fa-lock"></i> Locked</button>
       ${buyBtn}`;
@@ -815,7 +804,30 @@ function afterPaymentDownload() {
 // ══ INIT ══
 loadAll();
 loadAiPoints();
-checkNotifBadge();
+
+async function loadNotifications() {
+  const el = document.getElementById('notif-list');
+  if(el) el.innerHTML = '<div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading...</p></div>';
+  try {
+    const r = await fetch('/api/notifications');
+    const d = await r.json();
+    if(!d.success || !d.notifications.length) {
+      if(el) el.innerHTML = '<div class="empty"><i class="fa-solid fa-bell-slash"></i><p>No notifications yet</p></div>';
+      return;
+    }
+    if(el) el.innerHTML = d.notifications.map(function(n) {
+      var c = n.type=='upload'?'#00ff88':n.type=='maintenance'?'#ff9f43':'#00d9ff';
+      return '<div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px;">' +
+        '<div style="font-size:10px;font-weight:700;color:'+c+';margin-bottom:6px;">'+n.type.toUpperCase()+'</div>' +
+        '<div style="font-size:14px;font-weight:600;margin-bottom:5px;">'+n.title+'</div>' +
+        '<div style="font-size:12px;color:var(--muted);line-height:1.6;white-space:pre-line;margin-bottom:8px;">'+n.message+'</div>' +
+        '<div style="font-size:10px;color:var(--muted);">'+new Date(n.sentAt).toLocaleString()+'</div>' +
+        '</div>';
+    }).join('');
+  } catch(e) {
+    if(el) el.innerHTML = '<div class="empty"><p>Failed to load notifications</p></div>';
+  }
+}
 </script>
 </body>
 </html>
