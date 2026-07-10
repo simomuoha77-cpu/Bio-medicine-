@@ -774,6 +774,10 @@ function registerAdminRoutes(prefix) {
     const notifs = await Notification.find().sort({ sentAt:-1 }).limit(50);
     res.json({ success:true, notifications:notifs });
   });
+  app.delete(`${prefix}/notifications/:id`, adminAuth, async (req, res) => {
+    await Notification.findByIdAndDelete(req.params.id);
+    res.json({ success:true, message:'Notification deleted' });
+  });
 
   app.get(`${prefix}/analytics`, adminAuth, async (req, res) => {
     const topDownloaded = await PDF.find().sort({ downloads:-1 }).limit(10);
