@@ -519,7 +519,7 @@ function catName(id) { return allCats.find(c => c._id === id)?.name || id; }
 
 function pdfCard(p) {
   const thumb = p.thumbnailId ? `/api/thumbnail/${p.thumbnailId}` : (p.thumbnail ? `/uploads/thumbnails/${p.thumbnail}` : null);
-  const hasPrice = p.price && p.price > 0;
+  const hasPrice = (p.price && p.price > 0) || p.access === "premium" || p.access === "restricted";
   const isPurchased = myPurchasedIds.has(p._id);
   const isPublic = !hasPrice;
 
@@ -531,9 +531,12 @@ function pdfCard(p) {
       <button class="pdf-dl-btn" onclick="dlPdf('${p._id}','${p.title.replace(/'/g,"\'")}')"><i class="fa-solid fa-download"></i> Download</button>
       <button class="pdf-owned-btn"><i class="fa-solid fa-check-circle"></i> Purchased ✓</button>`;
   } else {
+    const buyBtn = p.price && p.price > 0
+      ? `<button class="pdf-buy-btn" onclick="openMpesaModal('${p._id}','${p.title.replace(/'/g,"\'")}',${p.price})"><i class="fa-solid fa-mobile-screen-button"></i> Buy — KES ${p.price}</button>`
+      : `<button class="pdf-buy-btn" style="background:rgba(255,159,67,0.15);color:#ff9f43;cursor:default;"><i class="fa-solid fa-lock"></i> Premium — Price not set</button>`;
     actionBtn = `
       <button class="pdf-dl-btn" style="opacity:.4;cursor:not-allowed;" disabled><i class="fa-solid fa-lock"></i> Locked</button>
-      <button class="pdf-buy-btn" onclick="openMpesaModal('${p._id}','${p.title.replace(/'/g,"\'")}',${p.price})"><i class="fa-solid fa-mobile-screen-button"></i> Buy — KES ${p.price}</button>`;
+      ${buyBtn}`;
   }
 
   return `<div class="pdf-card">
