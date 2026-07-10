@@ -314,6 +314,14 @@ app.post("/login", async (req, res) => {
 });
 
 // ============================
+// PUBLIC NOTIFICATIONS
+// ============================
+app.get("/api/notifications", async (req, res) => {
+  const notifs = await Notification.find().sort({ sentAt: -1 }).limit(20);
+  res.json({ success: true, notifications: notifs });
+});
+
+// ============================
 // PUBLIC PDFs
 // ============================
 app.get("/api/pdfs", async (req, res) => {

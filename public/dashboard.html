@@ -169,6 +169,12 @@ body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-he
 .pstat-val{font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--accent);}
 .pstat-lbl{font-size:11px;color:var(--muted);margin-top:3px;}
 
+.notif-item{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:10px;transition:border-color .2s;}
+.notif-item.unread{border-color:rgba(0,217,255,0.2);background:rgba(0,217,255,0.03);}
+.notif-type{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--accent);margin-bottom:6px;}
+.notif-title{font-size:14px;font-weight:600;margin-bottom:5px;}
+.notif-msg{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:8px;}
+.notif-time{font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
 /* M-PESA MODAL */
 .mpesa-modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:999;align-items:center;justify-content:center;padding:20px;}
 .mpesa-modal-ov.open{display:flex;}
@@ -279,6 +285,10 @@ body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-he
     <button class="nav-btn" onclick="goTo('library',this)"><i class="fa-solid fa-book-medical"></i> PDF Library</button>
     <button class="nav-btn" onclick="goTo('downloads',this)"><i class="fa-solid fa-download"></i> My Downloads</button>
     <button class="nav-btn" onclick="goTo('purchases',this)"><i class="fa-solid fa-receipt"></i> My Purchases</button>
+    <button class="nav-btn" id="notif-nav-btn" onclick="goTo('notifications',this)">
+      <i class="fa-solid fa-bell"></i> Notifications
+      <span id="notif-badge" style="display:none;background:#ff4757;color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:auto;">0</span>
+    </button>
     <div class="nav-section">AI Tools</div>
     <button class="nav-btn" onclick="goTo('ai',this)" id="ai-nav-btn">
       <i class="fa-solid fa-robot"></i> MedBot AI
@@ -416,6 +426,17 @@ body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-he
     <div id="purchases-wrap"><div class="empty"><i class="fa-solid fa-receipt"></i><p>No purchases yet</p></div></div>
   </div>
 
+  <!-- NOTIFICATIONS -->
+  <div class="section" id="sec-notifications">
+    <div class="section-hdr">
+      <h2><i class="fa-solid fa-bell" style="color:var(--accent);margin-right:8px;"></i>Notifications</h2>
+      <button class="btn btn-outline" onclick="loadNotifications()" style="padding:7px 14px;font-size:12px;"><i class="fa-solid fa-rotate"></i></button>
+    </div>
+    <div id="notif-list">
+      <div class="empty"><i class="fa-solid fa-bell-slash"></i><p>No notifications yet</p></div>
+    </div>
+  </div>
+
   <!-- PROFILE -->
   <div class="section" id="sec-profile">
     <div class="profile-card">
@@ -469,7 +490,7 @@ document.getElementById("prof-email").textContent = USER.email || "";
 function logout() { localStorage.clear(); window.location.href = "/login.html"; }
 
 // ══ NAVIGATION ══
-const titles = { home:"Dashboard", library:"PDF Library", ai:"MedBot AI", downloads:"My Downloads", purchases:"My Purchases", profile:"Profile" };
+const titles = { home:"Dashboard", library:"PDF Library", ai:"MedBot AI", downloads:"My Downloads", purchases:"My Purchases", notifications:"Notifications", profile:"Profile" };
 function goTo(name, btn) {
   document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
@@ -480,6 +501,7 @@ function goTo(name, btn) {
   if(name === "ai")        loadAiPoints();
   if(name === "downloads") renderDownloads();
   if(name === "purchases") loadPurchases();
+  if(name === "notifications") loadNotifications();
   if(name === "library")   renderLibrary(allPdfs);
 }
 
@@ -793,6 +815,7 @@ function afterPaymentDownload() {
 // ══ INIT ══
 loadAll();
 loadAiPoints();
+checkNotifBadge();
 </script>
 </body>
 </html>
