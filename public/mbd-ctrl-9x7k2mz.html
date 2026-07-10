@@ -816,7 +816,20 @@ async function loadNotifHist(){
     const r=await aFetch("/api/mbx9k/notifications");const d=await r.json();if(!d.success)return;
     const el=document.getElementById("notif-hist");
     if(!d.notifications.length){el.innerHTML=`<div class="empty-state"><i class="fa-solid fa-bell-slash"></i><p>None sent yet</p></div>`;return;}
-    el.innerHTML=d.notifications.map(n=>`<div style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.025);"><div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;"><span style="font-size:10px;font-weight:600;color:var(--accent);">${n.type.toUpperCase()}</span><span style="font-size:10px;color:var(--muted);">${new Date(n.sentAt).toLocaleString()}</span></div><div style="font-size:13px;font-weight:600;margin-bottom:3px;">${n.title}</div><div style="font-size:11px;color:var(--muted);">${n.message.substring(0,80)}${n.message.length>80?"...":""}</div><div style="font-size:10px;color:var(--muted);margin-top:5px;">→ ${n.recipients} users</div></div>`).join("");
+    el.innerHTML=d.notifications.map(n=>`<div style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.025);">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:10px;font-weight:600;color:var(--accent);">${n.type.toUpperCase()}</span>
+      <span style="font-size:10px;color:var(--muted);">${new Date(n.sentAt).toLocaleString()}</span>
+    </div>
+    <button onclick="deleteNotif('${n._id}')" style="background:rgba(255,71,87,0.1);border:1px solid rgba(255,71,87,0.2);color:#ff4757;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;">
+      <i class="fa-solid fa-trash"></i>
+    </button>
+  </div>
+  <div style="font-size:13px;font-weight:600;margin-bottom:3px;">${n.title}</div>
+  <div style="font-size:11px;color:var(--muted);">${n.message.substring(0,80)}${n.message.length>80?"...":""}</div>
+  <div style="font-size:10px;color:var(--muted);margin-top:5px;">→ ${n.recipients} users</div>
+</div>`).join("");
   }catch{}
 }
 
@@ -885,6 +898,15 @@ async function saveAiPoints(){
   const r=await aFetch("/api/mbx9k/settings/ai-points",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({points:pts})});
   const d=await r.json();
   if(d.success)toast(d.message,"ok");else toast(d.message,"er");
+}
+
+async function deleteNotif(id) {
+  try {
+    const r = await aFetch('/api/mbx9k/notifications/'+id, {method:'DELETE'});
+    const d = await r.json();
+    if(d.success) { toast('Deleted','ok'); loadNotifHist(); }
+    else toast(d.message||'Error','er');
+  } catch(e) { toast('Connection error','er'); }
 }
 </script>
 </body>
