@@ -351,6 +351,8 @@ app.post("/api/support", async (req, res) => {
 // Add about page route
 app.get("/about", (req, res) => res.sendFile(process.cwd() + "/public/about.html"));
 app.get("/about.html", (req, res) => res.sendFile(process.cwd() + "/public/about.html"));
+app.get("/privacy", (req, res) => res.sendFile(process.cwd() + "/public/privacy.html"));
+app.get("/privacy.html", (req, res) => res.sendFile(process.cwd() + "/public/privacy.html"));
 
 // ============================
 // PUBLIC PDFs
