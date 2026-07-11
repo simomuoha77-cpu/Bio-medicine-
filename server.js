@@ -314,12 +314,43 @@ app.post("/login", async (req, res) => {
 });
 
 // ============================
-// PUBLIC NOTIFICATIONS
+// SUPPORT FORM
 // ============================
-app.get("/api/notifications", async (req, res) => {
-  const notifs = await Notification.find().sort({ sentAt: -1 }).limit(20);
-  res.json({ success: true, notifications: notifs });
+app.post("/api/support", async (req, res) => {
+  const { name, email, type, subject, message } = req.body;
+  if (!name || !email || !message)
+    return res.json({ success: false, message: "All fields required" });
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: "studentshelplibrary@gmail.com",
+      subject: `[SUPPORT] ${type?.toUpperCase()} — ${subject || "No subject"}`,
+      html: `<div style="background:#071018;padding:30px;color:white;font-family:Arial;border-radius:12px;">
+        <h2 style="color:#00d9ff;">MASTER BIOMEDS — Support Request</h2>
+        <table style="width:100%;margin:20px 0;">
+          <tr><td style="color:#5a7a8a;padding:6px 0;">Name</td><td style="font-weight:600;">${name}</td></tr>
+          <tr><td style="color:#5a7a8a;padding:6px 0;">Email</td><td>${email}</td></tr>
+          <tr><td style="color:#5a7a8a;padding:6px 0;">Type</td><td style="color:#00d9ff;">${type}</td></tr>
+          <tr><td style="color:#5a7a8a;padding:6px 0;">Subject</td><td>${subject}</td></tr>
+        </table>
+        <div style="background:#0b1622;border-radius:8px;padding:16px;margin-top:16px;">
+          <p style="color:#5a7a8a;margin-bottom:8px;">Message:</p>
+          <p style="line-height:1.7;">${message}</p>
+        </div>
+        <p style="color:#5a7a8a;font-size:12px;margin-top:16px;">Reply to: ${email}</p>
+      </div>`
+    });
+    await logActivity("support", `Support: ${type} from ${email}`);
+    res.json({ success: true, message: "Support request sent!" });
+  } catch(err) {
+    console.error("Support email error:", err.message);
+    res.json({ success: true, message: "Received!" }); // Still show success to user
+  }
 });
+
+// Add about page route
+app.get("/about", (req, res) => res.sendFile(process.cwd() + "/public/about.html"));
+app.get("/about.html", (req, res) => res.sendFile(process.cwd() + "/public/about.html"));
 
 // ============================
 // PUBLIC PDFs
@@ -698,7 +729,7 @@ function registerAdminRoutes(prefix) {
       const { category="", access="public" } = req.body;
       const uploaded = [];
       for (const file of req.files) {
-        if (!ALLOWED_TYPES[file.mimetype]) continue;
+        // Accept all file types
         const title = file.originalname.replace(/\.[^/.]+$/, "").replace(/_/g," ");
         const detectedType = ALLOWED_TYPES[file.mimetype] || "pdf";
         const fileId = await uploadToGridFS(file.buffer, file.originalname, file.mimetype);
@@ -773,10 +804,6 @@ function registerAdminRoutes(prefix) {
   app.get(`${prefix}/notifications`, adminAuth, async (req, res) => {
     const notifs = await Notification.find().sort({ sentAt:-1 }).limit(50);
     res.json({ success:true, notifications:notifs });
-  });
-  app.delete(`${prefix}/notifications/:id`, adminAuth, async (req, res) => {
-    await Notification.findByIdAndDelete(req.params.id);
-    res.json({ success:true, message:'Notification deleted' });
   });
 
   app.get(`${prefix}/analytics`, adminAuth, async (req, res) => {

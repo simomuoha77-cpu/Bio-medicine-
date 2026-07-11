@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy & Terms — MASTER BIOMEDS</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Sora',sans-serif;background:#071018;color:#e8f4f8;min-height:100vh;}
+.bg{position:fixed;inset:0;z-index:0;background:radial-gradient(ellipse 60% 50% at 20% 20%,rgba(0,217,255,0.05) 0%,transparent 70%),radial-gradient(ellipse 40% 60% at 80% 80%,rgba(0,102,255,0.04) 0%,transparent 70%);}
+nav{position:sticky;top:0;z-index:100;background:rgba(7,16,24,0.92);backdrop-filter:blur(12px);border-bottom:1px solid rgba(0,217,255,0.07);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+.nav-logo{font-size:16px;font-weight:700;color:#00d9ff;}
+.nav-logo span{color:#e8f4f8;}
+.nav-links{display:flex;gap:6px;flex-wrap:wrap;}
+.nav-link{padding:8px 14px;border-radius:8px;font-size:13px;font-weight:500;color:#5a7a8a;text-decoration:none;transition:all .2s;}
+.nav-link:hover{color:#e8f4f8;background:rgba(255,255,255,0.05);}
+.btn-back{padding:9px 18px;border-radius:9px;background:rgba(0,217,255,0.08);border:1px solid rgba(0,217,255,0.2);color:#00d9ff;font-size:13px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:7px;}
+
+/* TABS */
+.tab-bar{position:sticky;top:57px;z-index:90;background:rgba(7,16,24,0.95);backdrop-filter:blur(12px);border-bottom:1px solid rgba(0,217,255,0.07);padding:0 24px;display:flex;gap:0;overflow-x:auto;}
+.tab-bar::-webkit-scrollbar{height:3px;}
+.tab-bar::-webkit-scrollbar-thumb{background:rgba(0,217,255,0.2);}
+.tab{padding:14px 18px;font-size:13px;font-weight:500;color:#5a7a8a;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;background:transparent;border-left:none;border-right:none;border-top:none;font-family:'Sora',sans-serif;}
+.tab:hover{color:#e8f4f8;}
+.tab.active{color:#00d9ff;border-bottom-color:#00d9ff;}
+
+.container{position:relative;z-index:1;max-width:860px;margin:0 auto;padding:40px 24px 80px;}
+
+/* SECTIONS */
+.page{display:none;}
+.page.active{display:block;}
+
+.hero-sm{text-align:center;padding:40px 0 32px;}
+.hero-badge{display:inline-flex;align-items:center;gap:7px;background:rgba(0,217,255,0.08);border:1px solid rgba(0,217,255,0.2);border-radius:20px;padding:6px 16px;font-size:12px;color:#00d9ff;margin-bottom:16px;}
+.hero-sm h1{font-size:28px;font-weight:700;margin-bottom:10px;letter-spacing:-.5px;}
+.hero-sm p{font-size:14px;color:#5a7a8a;line-height:1.7;max-width:540px;margin:0 auto;}
+
+.card{background:#0b1622;border:1px solid rgba(0,217,255,0.07);border-radius:16px;padding:28px;margin-bottom:18px;}
+.card-title{font-size:16px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:10px;}
+.card-title i{color:#00d9ff;}
+
+.info-list{list-style:none;display:flex;flex-direction:column;gap:10px;}
+.info-list li{display:flex;align-items:flex-start;gap:10px;font-size:13px;color:#9ba8b5;line-height:1.6;}
+.info-list li i{color:#00d9ff;margin-top:2px;flex-shrink:0;width:14px;}
+.info-list li i.red{color:#ff4757;}
+.info-list li i.green{color:#00ff88;}
+.info-list li i.orange{color:#ff9f43;}
+.info-list li i.purple{color:#a855f7;}
+
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.badge-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:11px;font-weight:600;}
+.badge-blue{background:rgba(0,217,255,0.08);border:1px solid rgba(0,217,255,0.15);color:#00d9ff;}
+.badge-green{background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.15);color:#00ff88;}
+.badge-orange{background:rgba(255,159,67,0.08);border:1px solid rgba(255,159,67,0.15);color:#ff9f43;}
+.badge-purple{background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.15);color:#a855f7;}
+.badge-red{background:rgba(255,71,87,0.08);border:1px solid rgba(255,71,87,0.15);color:#ff4757;}
+
+.divider{height:1px;background:rgba(0,217,255,0.07);margin:28px 0;}
+
+.highlight-box{border-radius:12px;padding:18px;margin-bottom:14px;}
+.hl-blue{background:rgba(0,217,255,0.04);border:1px solid rgba(0,217,255,0.1);}
+.hl-green{background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.1);}
+.hl-red{background:rgba(255,71,87,0.04);border:1px solid rgba(255,71,87,0.1);}
+.hl-orange{background:rgba(255,159,67,0.04);border:1px solid rgba(255,159,67,0.1);}
+.hl-purple{background:rgba(168,85,247,0.04);border:1px solid rgba(168,85,247,0.1);}
+.hl-title{font-size:13px;font-weight:700;margin-bottom:10px;}
+.hl-blue .hl-title{color:#00d9ff;}
+.hl-green .hl-title{color:#00ff88;}
+.hl-red .hl-title{color:#ff4757;}
+.hl-orange .hl-title{color:#ff9f43;}
+.hl-purple .hl-title{color:#a855f7;}
+
+.last-updated{text-align:center;font-size:12px;color:#5a7a8a;margin-top:40px;padding-top:20px;border-top:1px solid rgba(0,217,255,0.07);}
+
+@media(max-width:600px){
+  .two-col{grid-template-columns:1fr;}
+  .hero-sm h1{font-size:22px;}
+}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+
+<nav>
+  <div class="nav-logo">MASTER <span>BIOMEDS</span></div>
+  <div class="nav-links">
+    <a href="/dashboard.html" class="nav-link"><i class="fa-solid fa-house"></i> Home</a>
+    <a href="/about.html" class="nav-link"><i class="fa-solid fa-circle-info"></i> About</a>
+  </div>
+  <a href="/dashboard.html" class="btn-back"><i class="fa-solid fa-arrow-left"></i> Back</a>
+</nav>
+
+<div class="tab-bar">
+  <button class="tab active" onclick="showTab('ai')"><i class="fa-solid fa-robot"></i> AI & Privacy</button>
+  <button class="tab" onclick="showTab('terms')"><i class="fa-solid fa-file-contract"></i> Terms & Conditions</button>
+  <button class="tab" onclick="showTab('privacy')"><i class="fa-solid fa-shield-halved"></i> Privacy Policy</button>
+</div>
+
+<div class="container">
+
+  <!-- ═══ AI & PRIVACY PAGE ═══ -->
+  <div class="page active" id="page-ai">
+    <div class="hero-sm">
+      <div class="hero-badge"><i class="fa-solid fa-robot"></i> AI Assistant Information</div>
+      <h1>AI Chatbot & Privacy</h1>
+      <p>Learn how our AI assistant works, what it does and doesn't do, and how your privacy is protected.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-shield-halved"></i> AI Privacy Commitment</div>
+      <div class="highlight-box hl-green" style="margin-bottom:16px;">
+        <div class="hl-title">✅ What the AI does NOT do:</div>
+        <ul class="info-list">
+          <li><i class="fa-solid fa-xmark red"></i> Access your personal passwords</li>
+          <li><i class="fa-solid fa-xmark red"></i> Misuse your private information</li>
+          <li><i class="fa-solid fa-xmark red"></i> Expose confidential academic data</li>
+          <li><i class="fa-solid fa-xmark red"></i> Share your conversations with third parties</li>
+        </ul>
+      </div>
+      <div class="highlight-box hl-blue">
+        <div class="hl-title">📊 Interactions may only be used to:</div>
+        <ul class="info-list">
+          <li><i class="fa-solid fa-check green"></i> Improve chatbot responses</li>
+          <li><i class="fa-solid fa-check green"></i> Optimize search accuracy</li>
+          <li><i class="fa-solid fa-check green"></i> Enhance learning recommendations</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-bullseye"></i> Purpose of the AI Chatbot</div>
+      <p style="font-size:13px;color:#9ba8b5;line-height:1.7;margin-bottom:16px;">The AI assistant is designed to help medical students learn faster, get answers to academic questions, and simplify access to medical knowledge.</p>
+      <ul class="info-list">
+        <li><i class="fa-solid fa-check green"></i> Answer medical and academic questions instantly</li>
+        <li><i class="fa-solid fa-check green"></i> Explain complex medical concepts simply</li>
+        <li><i class="fa-solid fa-check green"></i> Support exam preparation</li>
+        <li><i class="fa-solid fa-check green"></i> Provide clinical pearls and study tips</li>
+        <li><i class="fa-solid fa-check green"></i> Available 24/7 — no waiting for lectures</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-mobile-screen-button"></i> Where Can Students Access the AI?</div>
+      <div class="two-col">
+        <div>
+          <p style="font-size:12px;color:#5a7a8a;margin-bottom:10px;">Available on these pages:</p>
+          <ul class="info-list">
+            <li><i class="fa-solid fa-house"></i> Home / Dashboard</li>
+            <li><i class="fa-solid fa-file-pdf"></i> PDF Reader section</li>
+            <li><i class="fa-solid fa-headset"></i> Support page</li>
+            <li><i class="fa-solid fa-robot"></i> Dashboard AI widget (JuanAi)</li>
+          </ul>
+        </div>
+        <div>
+          <p style="font-size:12px;color:#5a7a8a;margin-bottom:10px;">Optimized for:</p>
+          <ul class="info-list">
+            <li><i class="fa-brands fa-android orange"></i> Android devices</li>
+            <li><i class="fa-brands fa-apple"></i> iOS devices</li>
+            <li><i class="fa-solid fa-tablet-screen-button"></i> Tablets</li>
+            <li><i class="fa-solid fa-desktop"></i> Desktop browsers</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-rocket" style="color:#a855f7;"></i> Future AI Features</div>
+      <p style="font-size:13px;color:#9ba8b5;margin-bottom:16px;">Exciting AI features coming in future updates:</p>
+      <div class="badge-row">
+        <span class="badge badge-purple"><i class="fa-solid fa-microphone"></i> Voice Assistant</span>
+        <span class="badge badge-blue"><i class="fa-solid fa-language"></i> Multilingual Chatbot</span>
+        <span class="badge badge-green"><i class="fa-solid fa-question-circle"></i> AI Quiz Generation</span>
+        <span class="badge badge-orange"><i class="fa-solid fa-file-lines"></i> PDF Summarization</span>
+        <span class="badge badge-purple"><i class="fa-solid fa-calendar-check"></i> Smart Study Planner</span>
+        <span class="badge badge-blue"><i class="fa-solid fa-cards-blank"></i> AI Flashcards</span>
+        <span class="badge badge-green"><i class="fa-solid fa-chalkboard-teacher"></i> Subject Assistant</span>
+        <span class="badge badge-orange"><i class="fa-solid fa-comments"></i> Conversational Support</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TERMS PAGE ═══ -->
+  <div class="page" id="page-terms">
+    <div class="hero-sm">
+      <div class="hero-badge"><i class="fa-solid fa-file-contract"></i> Legal</div>
+      <h1>Terms & Conditions</h1>
+      <p>By using MASTER BIOMEDS, you agree to the following terms and conditions. Please read carefully.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-check-circle" style="color:#00ff88;"></i> Allowed Usage</div>
+      <p style="font-size:13px;color:#9ba8b5;margin-bottom:14px;">Users of MASTER BIOMEDS are permitted to:</p>
+      <ul class="info-list">
+        <li><i class="fa-solid fa-check green"></i> Read PDFs and educational materials online</li>
+        <li><i class="fa-solid fa-check green"></i> Download educational resources for personal study</li>
+        <li><i class="fa-solid fa-check green"></i> Bookmark and save content for later access</li>
+        <li><i class="fa-solid fa-check green"></i> Save personal notes and highlights</li>
+        <li><i class="fa-solid fa-check green"></i> Use materials strictly for educational purposes</li>
+        <li><i class="fa-solid fa-check green"></i> Share platform link with fellow students</li>
+        <li><i class="fa-solid fa-check green"></i> Use AI assistant for academic support</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-ban" style="color:#ff4757;"></i> Prohibited Activities</div>
+      <p style="font-size:13px;color:#9ba8b5;margin-bottom:14px;">The following activities are strictly prohibited:</p>
+      <ul class="info-list">
+        <li><i class="fa-solid fa-xmark red"></i> Upload malicious, harmful, or inappropriate files</li>
+        <li><i class="fa-solid fa-xmark red"></i> Distribute illegal, pirated, or copyright-infringing content</li>
+        <li><i class="fa-solid fa-xmark red"></i> Violate copyright of educational materials</li>
+        <li><i class="fa-solid fa-xmark red"></i> Abuse or misuse the platform and its features</li>
+        <li><i class="fa-solid fa-xmark red"></i> Spam notifications, forms, or other users</li>
+        <li><i class="fa-solid fa-xmark red"></i> Attempt unauthorized access to admin systems</li>
+        <li><i class="fa-solid fa-xmark red"></i> Share account credentials with other users</li>
+        <li><i class="fa-solid fa-xmark red"></i> Use the platform for commercial redistribution</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-copyright"></i> Copyright Policy</div>
+      <div class="highlight-box hl-blue" style="margin-bottom:12px;">
+        <ul class="info-list">
+          <li><i class="fa-solid fa-check green"></i> All educational materials belong to their respective owners, authors, lecturers, or institutions.</li>
+          <li><i class="fa-solid fa-check green"></i> Users are responsible for respecting copyright and fair educational use policies.</li>
+          <li><i class="fa-solid fa-check green"></i> MASTER BIOMEDS does not claim ownership of uploaded academic content.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-user-check"></i> User Responsibilities</div>
+      <ul class="info-list">
+        <li><i class="fa-solid fa-check green"></i> Proper and ethical platform usage at all times</li>
+        <li><i class="fa-solid fa-check green"></i> Protecting downloaded materials from unauthorized redistribution</li>
+        <li><i class="fa-solid fa-check green"></i> Avoiding misuse of educational resources</li>
+        <li><i class="fa-solid fa-check green"></i> Reporting bugs, issues, or inappropriate content</li>
+        <li><i class="fa-solid fa-check green"></i> Keeping account credentials secure and private</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-gavel"></i> Platform Rights</div>
+      <p style="font-size:13px;color:#9ba8b5;margin-bottom:14px;">MASTER BIOMEDS reserves the right to:</p>
+      <ul class="info-list">
+        <li><i class="fa-solid fa-circle orange"></i> Remove inappropriate or policy-violating content</li>
+        <li><i class="fa-solid fa-circle orange"></i> Update terms and policies at any time</li>
+        <li><i class="fa-solid fa-circle orange"></i> Suspend or terminate abusive user accounts</li>
+        <li><i class="fa-solid fa-circle orange"></i> Modify platform features for improvement</li>
+        <li><i class="fa-solid fa-circle orange"></i> Change pricing of premium resources</li>
+      </ul>
+    </div>
+
+    <div class="last-updated">Last updated: July 2026 · MASTER BIOMEDS</div>
+  </div>
+
+  <!-- ═══ PRIVACY PAGE ═══ -->
+  <div class="page" id="page-privacy">
+    <div class="hero-sm">
+      <div class="hero-badge"><i class="fa-solid fa-shield-halved"></i> Data Protection</div>
+      <h1>Privacy Policy</h1>
+      <p>We value your privacy and are committed to protecting your personal data. Here's exactly what we collect and how we use it.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-database"></i> What Data We Store</div>
+      <p style="font-size:13px;color:#9ba8b5;margin-bottom:14px;">The platform may store limited data to improve your experience:</p>
+      <div class="two-col">
+        <div>
+          <div class="highlight-box hl-blue">
+            <div class="hl-title">📱 App Data</div>
+            <ul class="info-list">
+              <li><i class="fa-solid fa-check green"></i> Reading history</li>
+              <li><i class="fa-solid fa-check green"></i> Bookmarks & favorites</li>
+              <li><i class="fa-solid fa-check green"></i> Personal notes</li>
+              <li><i class="fa-solid fa-check green"></i> Download history</li>
+            </ul>
+          </div>
+        </div>
+        <div>
+          <div class="highlight-box hl-orange">
+            <div class="hl-title">📊 Analytics Data</div>
+            <ul class="info-list">
+              <li><i class="fa-solid fa-check green"></i> Device information</li>
+              <li><i class="fa-solid fa-check green"></i> Reading statistics</li>
+              <li><i class="fa-solid fa-check green"></i> App performance data</li>
+              <li><i class="fa-solid fa-check green"></i> Usage patterns</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-circle-check" style="color:#00ff88;"></i> How We Use Your Data</div>
+      <p style="font-size:13px;color:#9ba8b5;margin-bottom:14px;">Data is used exclusively to improve your experience:</p>
+      <ul class="info-list">
+        <li><i class="fa-solid fa-check green"></i> Improve user experience and interface</li>
+        <li><i class="fa-solid fa-check green"></i> Provide better content recommendations</li>
+        <li><i class="fa-solid fa-check green"></i> Enhance platform performance</li>
+        <li><i class="fa-solid fa-check green"></i> Maintain reading continuity and progress</li>
+        <li><i class="fa-solid fa-check green"></i> Send important platform notifications</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-ban" style="color:#ff4757;"></i> What We Do NOT Do</div>
+      <div class="highlight-box hl-red">
+        <ul class="info-list">
+          <li><i class="fa-solid fa-xmark red"></i> We do NOT sell personal information to third parties</li>
+          <li><i class="fa-solid fa-xmark red"></i> We do NOT share your data with advertisers</li>
+          <li><i class="fa-solid fa-xmark red"></i> We do NOT access your personal passwords</li>
+          <li><i class="fa-solid fa-xmark red"></i> We do NOT expose confidential academic data</li>
+          <li><i class="fa-solid fa-xmark red"></i> We do NOT use your data for commercial purposes</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-lock"></i> Security Measures</div>
+      <p style="font-size:13px;color:#9ba8b5;margin-bottom:14px;">We implement multiple layers of security to protect your data:</p>
+      <div class="badge-row">
+        <span class="badge badge-blue"><i class="fa-solid fa-lock"></i> Encrypted Passwords</span>
+        <span class="badge badge-green"><i class="fa-solid fa-cloud"></i> Secure Cloud Storage</span>
+        <span class="badge badge-orange"><i class="fa-solid fa-key"></i> JWT Authentication</span>
+        <span class="badge badge-purple"><i class="fa-solid fa-shield"></i> MongoDB Atlas Security</span>
+        <span class="badge badge-blue"><i class="fa-solid fa-server"></i> HTTPS Only</span>
+        <span class="badge badge-green"><i class="fa-solid fa-user-shield"></i> No Password Sharing</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-envelope"></i> Contact for Privacy Concerns</div>
+      <p style="font-size:13px;color:#9ba8b5;margin-bottom:16px;">If you have any privacy concerns or wish to request data deletion, contact us:</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <a href="mailto:studentshelplibrary@gmail.com" style="display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:9px;background:rgba(0,217,255,0.07);border:1px solid rgba(0,217,255,0.2);color:#00d9ff;text-decoration:none;font-size:13px;font-weight:600;">
+          <i class="fa-solid fa-envelope"></i> studentshelplibrary@gmail.com
+        </a>
+        <a href="https://wa.link/xxz72n" target="_blank" style="display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:9px;background:rgba(0,200,83,0.07);border:1px solid rgba(0,200,83,0.2);color:#00c853;text-decoration:none;font-size:13px;font-weight:600;">
+          <i class="fa-brands fa-whatsapp"></i> WhatsApp Support
+        </a>
+      </div>
+    </div>
+
+    <div class="last-updated">Last updated: July 2026 · MASTER BIOMEDS</div>
+  </div>
+
+</div>
+
+<script>
+function showTab(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.target.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
