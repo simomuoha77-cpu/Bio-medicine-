@@ -353,6 +353,17 @@ app.get("/about", (req, res) => res.sendFile(process.cwd() + "/public/about.html
 app.get("/about.html", (req, res) => res.sendFile(process.cwd() + "/public/about.html"));
 
 // ============================
+// GET GEMINI KEY FOR BROWSER
+// ============================
+app.get("/api/ai/getkey", userAuth, async (req, res) => {
+  try {
+    const k = await Settings.findOne({ key: "gemini_api_key" });
+    const key = k?.value || process.env.GEMINI_API_KEY || "";
+    res.json({ success:true, key });
+  } catch(e) { res.json({ success:false, key:"" }); }
+});
+
+// ============================
 // PUBLIC NOTIFICATIONS
 // ============================
 app.get("/api/notifications", async (req, res) => {
