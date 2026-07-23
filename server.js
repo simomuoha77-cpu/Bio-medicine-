@@ -351,8 +351,18 @@ app.post("/api/support", async (req, res) => {
 // Add about page route
 app.get("/about", (req, res) => res.sendFile(process.cwd() + "/public/about.html"));
 app.get("/about.html", (req, res) => res.sendFile(process.cwd() + "/public/about.html"));
-app.get("/privacy", (req, res) => res.sendFile(process.cwd() + "/public/privacy.html"));
-app.get("/privacy.html", (req, res) => res.sendFile(process.cwd() + "/public/privacy.html"));
+
+// ============================
+// PUBLIC NOTIFICATIONS
+// ============================
+app.get("/api/notifications", async (req, res) => {
+  try {
+    const notifs = await Notification.find().sort({ sentAt: -1 }).limit(20);
+    res.json({ success: true, notifications: notifs });
+  } catch(e) {
+    res.json({ success: false, notifications: [] });
+  }
+});
 
 // ============================
 // PUBLIC PDFs
