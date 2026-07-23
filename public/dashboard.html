@@ -446,15 +446,24 @@ body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-he
 
 <script>
 // ══ GEMINI CONFIG ══
-var _k=[65,81,46,65,98,56,82,78,54,76,87,113,89,56,105,70,116,100,45,114,69,45,106,120,97,79,76,70,56,45,73,79,90,106,116,97,72,80,87,67,122,78,111,88,73,56,110,79,114,121,109,87,65];
-function GK(){return _k.map(function(c){return String.fromCharCode(c);}).join('');}
+// Key fetched from server (admin sets it in Settings)
+let _geminiKey = "";
+async function GK() {
+  if (_geminiKey) return _geminiKey;
+  try {
+    const r = await fetch("/api/ai/getkey", { headers: {"x-user-token": TOKEN} });
+    const d = await r.json();
+    if(d.success && d.key) { _geminiKey = d.key; return d.key; }
+  } catch(e) {}
+  return "";
+}
 const GEMINI_MODELS = ["gemini-2.0-flash","gemini-2.5-flash","gemini-2.0-flash-lite"];
 const AI_SYSTEM = `You are MedBot, an expert AI assistant for MASTER BIOMEDS. Answer ALL questions but specialize in medical topics. For medical questions use: 📌 Definition 🔬 Mechanism 🩺 Signs & Symptoms 💊 Treatment ⚠️ Complications 💡 Clinical Pearl`;
 
 async function callGemini(question) {
   for (const model of GEMINI_MODELS) {
     try {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GK()}`, {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${await GK()}`, {
         method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({ systemInstruction:{parts:[{text:AI_SYSTEM}]}, contents:[{role:"user",parts:[{text:question}]}], generationConfig:{temperature:0.7,maxOutputTokens:2000} })
       });
