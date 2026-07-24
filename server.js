@@ -148,6 +148,20 @@ const AiChat       = mongoose.model("AiChat",       aiChatSchema);
 const Settings     = mongoose.model("Settings",     settingsSchema);
 const Payment      = mongoose.model("Payment",      paymentSchema);
 
+// APK Settings stored in Settings collection
+// key: "apk_version", value: "1.0.0"
+// key: "apk_url", value: "https://..."
+// key: "apk_size", value: "12.5 MB"
+// key: "apk_changelog", value: "..."
+
+
+// APK Settings stored in Settings collection
+// key: "apk_version", value: "1.0.0"
+// key: "apk_url", value: "https://..."
+// key: "apk_size", value: "12.5 MB"
+// key: "apk_changelog", value: "..."
+
+
 // ============================
 // ALLOWED FILE TYPES
 // ============================
@@ -361,6 +375,36 @@ app.get("/api/ai/getkey", userAuth, async (req, res) => {
     const key = k?.value || process.env.GEMINI_API_KEY || "";
     res.json({ success:true, key });
   } catch(e) { res.json({ success:false, key:"" }); }
+});
+
+// ============================
+// PUBLIC APK INFO
+// ============================
+app.get("/api/apk/info", async (req, res) => {
+  try {
+    const keys = ["apk_version","apk_url","apk_size","apk_changelog","apk_name"];
+    const settings = await Settings.find({ key: { $in: keys } });
+    const info = {};
+    settings.forEach(s => info[s.key] = s.value);
+    res.json({ success: true, apk: info });
+  } catch(e) {
+    res.json({ success: false, apk: {} });
+  }
+});
+
+// ============================
+// PUBLIC APK INFO
+// ============================
+app.get("/api/apk/info", async (req, res) => {
+  try {
+    const keys = ["apk_version","apk_url","apk_size","apk_changelog","apk_name"];
+    const settings = await Settings.find({ key: { $in: keys } });
+    const info = {};
+    settings.forEach(s => info[s.key] = s.value);
+    res.json({ success: true, apk: info });
+  } catch(e) {
+    res.json({ success: false, apk: {} });
+  }
 });
 
 // ============================
@@ -875,6 +919,64 @@ function registerAdminRoutes(prefix) {
     if (!points || points < 1 || points > 100) return res.json({ success:false, message:"Points must be 1-100" });
     await Settings.findOneAndUpdate({ key:"daily_ai_points" }, { key:"daily_ai_points", value:String(points), updatedAt:new Date() }, { upsert:true });
     res.json({ success:true, message:`Daily AI points set to ${points}` });
+  });
+
+  // APK Management
+  app.get(`${prefix}/apk`, adminAuth, async (req, res) => {
+    const keys = ["apk_version","apk_url","apk_size","apk_changelog","apk_name"];
+    const settings = await Settings.find({ key: { $in: keys } });
+    const info = {};
+    settings.forEach(s => info[s.key] = s.value);
+    res.json({ success: true, apk: info });
+  });
+
+  app.post(`${prefix}/apk`, adminAuth, async (req, res) => {
+    const { apk_version, apk_url, apk_size, apk_changelog, apk_name } = req.body;
+    try {
+      const updates = { apk_version, apk_url, apk_size, apk_changelog, apk_name };
+      for (const [key, value] of Object.entries(updates)) {
+        if (value !== undefined) {
+          await Settings.findOneAndUpdate(
+            { key },
+            { key, value: String(value), updatedAt: new Date() },
+            { upsert: true, new: true }
+          );
+        }
+      }
+      await logActivity("apk_update", `APK updated: v${apk_version}`, "admin001");
+      res.json({ success: true, message: "APK info updated successfully!" });
+    } catch(e) {
+      res.json({ success: false, message: e.message });
+    }
+  });
+
+  // APK Management
+  app.get(`${prefix}/apk`, adminAuth, async (req, res) => {
+    const keys = ["apk_version","apk_url","apk_size","apk_changelog","apk_name"];
+    const settings = await Settings.find({ key: { $in: keys } });
+    const info = {};
+    settings.forEach(s => info[s.key] = s.value);
+    res.json({ success: true, apk: info });
+  });
+
+  app.post(`${prefix}/apk`, adminAuth, async (req, res) => {
+    const { apk_version, apk_url, apk_size, apk_changelog, apk_name } = req.body;
+    try {
+      const updates = { apk_version, apk_url, apk_size, apk_changelog, apk_name };
+      for (const [key, value] of Object.entries(updates)) {
+        if (value !== undefined) {
+          await Settings.findOneAndUpdate(
+            { key },
+            { key, value: String(value), updatedAt: new Date() },
+            { upsert: true, new: true }
+          );
+        }
+      }
+      await logActivity("apk_update", `APK updated: v${apk_version}`, "admin001");
+      res.json({ success: true, message: "APK info updated successfully!" });
+    } catch(e) {
+      res.json({ success: false, message: e.message });
+    }
   });
 
   app.get(`${prefix}/payments`, adminAuth, async (req, res) => {
