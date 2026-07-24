@@ -424,7 +424,7 @@ app.get("/api/notifications", async (req, res) => {
 // ============================
 app.get("/api/pdfs", async (req, res) => {
   const { category, search, page = 1, limit = 20 } = req.query;
-  const query = { access: { $ne: "restricted" } };
+  const query = {};
   if (category) query.category = category;
   if (search)   query.title = { $regex: search, $options: "i" };
   const total = await PDF.countDocuments(query);
