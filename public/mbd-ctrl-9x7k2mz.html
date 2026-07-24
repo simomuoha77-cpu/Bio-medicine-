@@ -221,6 +221,8 @@ tr:hover td{background:rgba(255,255,255,0.012);}
       <div class="nav-grp">Insights</div>
       <button class="nl" onclick="showSec('analytics',this)"><i class="fa-solid fa-chart-bar"></i> Analytics</button>
       <button class="nl" onclick="showSec('logs',this)"><i class="fa-solid fa-scroll"></i> Activity Logs</button>
+      <div class="nav-grp">App</div>
+      <button class="nl" onclick="showSec('apk',this)"><i class="fa-solid fa-mobile-screen-button" style="color:#00d9ff;"></i> APK Manager</button>
       <div class="nav-grp">Revenue</div>
       <button class="nl" onclick="showSec('payments',this)"><i class="fa-solid fa-money-bill-wave" style="color:#00c853;"></i> M-Pesa Payments</button>
       <div class="nav-grp">Admin</div>
@@ -596,7 +598,7 @@ document.addEventListener("keydown",e=>{if(e.key==="Enter"&&document.getElementB
 
 function initPanel(){loadStats();loadCats();loadPdfs();loadUsers();loadLogs();loadNotifHist();loadAnalytics();}
 
-const secTitles={dashboard:"Dashboard",pdfs:"PDF Library",upload:"Upload PDFs",categories:"Categories",users:"Users",notifications:"Notifications",analytics:"Analytics",logs:"Activity Logs",settings:"Settings"};
+const secTitles={dashboard:"Dashboard",apk:"APK Manager",pdfs:"PDF Library",upload:"Upload PDFs",categories:"Categories",users:"Users",notifications:"Notifications",analytics:"Analytics",logs:"Activity Logs",settings:"Settings"};
 function showSec(name,btn){
   document.querySelectorAll(".sec").forEach(s=>s.classList.remove("active"));
   document.querySelectorAll(".nl").forEach(l=>l.classList.remove("active"));
@@ -907,6 +909,42 @@ async function deleteNotif(id) {
     if(d.success) { toast('Deleted','ok'); loadNotifHist(); }
     else toast(d.message||'Error','er');
   } catch(e) { toast('Connection error','er'); }
+}
+
+async function loadApkAdmin() {
+  try {
+    const r = await aFetch('/api/mbx9k/apk');
+    const d = await r.json();
+    const a = d.apk || {};
+    document.getElementById('apk-name').value = a.apk_name || '';
+    document.getElementById('apk-version').value = a.apk_version || '';
+    document.getElementById('apk-size').value = a.apk_size || '';
+    document.getElementById('apk-url').value = a.apk_url || '';
+    document.getElementById('apk-changelog').value = a.apk_changelog || '';
+    const cur = document.getElementById('apk-current');
+    if(a.apk_url) {
+      cur.innerHTML = '<div style="background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.15);border-radius:9px;padding:12px;font-size:12px;"><strong style="color:#00ff88;">Current: </strong>v'+a.apk_version+' ('+a.apk_size+') <a href="'+a.apk_url+'" target="_blank" style="color:var(--accent);">View Link</a></div>';
+    } else {
+      cur.innerHTML = '<div style="font-size:12px;color:var(--muted);">No APK set yet</div>';
+    }
+  } catch(e) { console.error(e); }
+}
+
+async function saveApkInfo() {
+  const data = {
+    apk_name: document.getElementById('apk-name').value,
+    apk_version: document.getElementById('apk-version').value,
+    apk_size: document.getElementById('apk-size').value,
+    apk_url: document.getElementById('apk-url').value,
+    apk_changelog: document.getElementById('apk-changelog').value
+  };
+  if(!data.apk_url || !data.apk_version) { toast('URL and version required','er'); return; }
+  try {
+    const r = await aFetch('/api/mbx9k/apk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const d = await r.json();
+    if(d.success) { toast('APK info saved!','ok'); loadApkAdmin(); }
+    else toast(d.message||'Error','er');
+  } catch(e) { toast('Error saving','er'); }
 }
 </script>
 </body>
