@@ -449,6 +449,34 @@ tr:hover td{background:rgba(255,255,255,0.012);}
     </div>
 
     <!-- SETTINGS -->
+    <!-- APK MANAGER -->
+    <div class="sec" id="sec-apk">
+      <div class="panel">
+        <div class="ph">
+          <span class="ph-ttl"><i class="fa-solid fa-mobile-screen-button" style="color:var(--accent);margin-right:6px;"></i>APK Manager</span>
+          <button class="btn btn-ghost" onclick="loadApkAdmin()"><i class="fa-solid fa-rotate"></i></button>
+        </div>
+        <div class="pb">
+          <div style="background:rgba(0,217,255,0.05);border:1px solid rgba(0,217,255,0.1);border-radius:10px;padding:14px;margin-bottom:20px;font-size:12px;color:var(--muted);line-height:1.7;">
+            Upload your APK to Google Drive then paste the direct download link below. Users will see Download App button in their dashboard.
+          </div>
+          <div class="frow">
+            <div class="fg"><label>App Name</label><input type="text" id="apk-name" placeholder="MASTER BIOMEDS"></div>
+            <div class="fg"><label>Version</label><input type="text" id="apk-version" placeholder="1.0.0"></div>
+          </div>
+          <div class="frow">
+            <div class="fg"><label>File Size</label><input type="text" id="apk-size" placeholder="12.5 MB"></div>
+            <div class="fg"><label>Download URL</label><input type="url" id="apk-url" placeholder="https://drive.google.com/..."></div>
+          </div>
+          <div class="frow one">
+            <div class="fg"><label>Changelog</label><textarea id="apk-changelog" rows="4" placeholder="- Bug fixes"></textarea></div>
+          </div>
+          <button class="btn btn-primary" onclick="saveApkInfo()" style="width:100%;padding:12px;"><i class="fa-solid fa-floppy-disk"></i> Save APK Info</button>
+          <div id="apk-current" style="margin-top:16px;"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="sec" id="sec-payments">
       <div class="stat-grid" style="margin-bottom:18px;">
         <div class="scard"><div class="scard-ic" style="background:rgba(0,200,83,0.1);color:#00c853"><i class="fa-solid fa-money-bill-wave"></i></div><div class="scard-val" id="pay-revenue">KES 0</div><div class="scard-lbl">Total Revenue</div></div>
