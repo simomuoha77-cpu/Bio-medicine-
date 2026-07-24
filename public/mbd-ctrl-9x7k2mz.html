@@ -457,21 +457,32 @@ tr:hover td{background:rgba(255,255,255,0.012);}
           <button class="btn btn-ghost" onclick="loadApkAdmin()"><i class="fa-solid fa-rotate"></i></button>
         </div>
         <div class="pb">
-          <div style="background:rgba(0,217,255,0.05);border:1px solid rgba(0,217,255,0.1);border-radius:10px;padding:14px;margin-bottom:20px;font-size:12px;color:var(--muted);line-height:1.7;">
-            Upload your APK to Google Drive then paste the direct download link below. Users will see Download App button in their dashboard.
-          </div>
           <div class="frow">
             <div class="fg"><label>App Name</label><input type="text" id="apk-name" placeholder="MASTER BIOMEDS"></div>
-            <div class="fg"><label>Version</label><input type="text" id="apk-version" placeholder="1.0.0"></div>
-          </div>
-          <div class="frow">
-            <div class="fg"><label>File Size</label><input type="text" id="apk-size" placeholder="12.5 MB"></div>
-            <div class="fg"><label>Download URL</label><input type="url" id="apk-url" placeholder="https://drive.google.com/..."></div>
+            <div class="fg"><label>Version *</label><input type="text" id="apk-version" placeholder="1.0.0"></div>
           </div>
           <div class="frow one">
-            <div class="fg"><label>Changelog</label><textarea id="apk-changelog" rows="4" placeholder="- Bug fixes"></textarea></div>
+            <div class="fg"><label>APK File *</label>
+              <div class="upload-zone" id="apk-zone" style="padding:20px;">
+                <input type="file" id="apk-file" accept=".apk" onchange="apkFileSelected()">
+                <i class="fa-solid fa-android" style="color:#00d9ff;font-size:28px;margin-bottom:8px;display:block;"></i>
+                <div class="uz-title" id="apk-zone-lbl">Click to select APK file</div>
+                <div class="uz-sub">Android APK · Max 200MB</div>
+              </div>
+            </div>
           </div>
-          <button class="btn btn-primary" onclick="saveApkInfo()" style="width:100%;padding:12px;"><i class="fa-solid fa-floppy-disk"></i> Save APK Info</button>
+          <div class="prog-wrap" id="apk-prog">
+            <div class="prog-txt"><span>Uploading APK...</span><span id="apk-pct">0%</span></div>
+            <div class="prog-bar"><div class="prog-fill" id="apk-fill" style="width:0%"></div></div>
+          </div>
+          <div class="frow one">
+            <div class="fg"><label>Changelog / What is New</label>
+              <textarea id="apk-changelog" rows="4" placeholder="- Bug fixes&#10;- New features&#10;- Performance improvements"></textarea>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="uploadApk()" style="width:100%;padding:12px;" id="apk-upload-btn">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Upload APK
+          </button>
           <div id="apk-current" style="margin-top:16px;"></div>
         </div>
       </div>
@@ -946,33 +957,80 @@ async function loadApkAdmin() {
     const a = d.apk || {};
     document.getElementById('apk-name').value = a.apk_name || '';
     document.getElementById('apk-version').value = a.apk_version || '';
-    document.getElementById('apk-size').value = a.apk_size || '';
-    document.getElementById('apk-url').value = a.apk_url || '';
     document.getElementById('apk-changelog').value = a.apk_changelog || '';
     const cur = document.getElementById('apk-current');
-    if(a.apk_url) {
-      cur.innerHTML = '<div style="background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.15);border-radius:9px;padding:12px;font-size:12px;"><strong style="color:#00ff88;">Current: </strong>v'+a.apk_version+' ('+a.apk_size+') <a href="'+a.apk_url+'" target="_blank" style="color:var(--accent);">View Link</a></div>';
+    if(a.apk_file_id) {
+      cur.innerHTML = '<div style="background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.15);border-radius:9px;padding:14px;font-size:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">' +
+        '<div><strong style="color:#00ff88;display:block;margin-bottom:4px;">Current APK</strong>' +
+        'v'+a.apk_version+' · '+a.apk_size+'</div>' +
+        '<a href="/api/apk/download" class="btn btn-success" style="padding:7px 14px;font-size:12px;" download><i class="fa-solid fa-download"></i> Download</a>' +
+        '</div>';
     } else {
-      cur.innerHTML = '<div style="font-size:12px;color:var(--muted);">No APK set yet</div>';
+      cur.innerHTML = '<div style="font-size:12px;color:var(--muted);">No APK uploaded yet</div>';
     }
   } catch(e) { console.error(e); }
 }
 
-async function saveApkInfo() {
-  const data = {
-    apk_name: document.getElementById('apk-name').value,
-    apk_version: document.getElementById('apk-version').value,
-    apk_size: document.getElementById('apk-size').value,
-    apk_url: document.getElementById('apk-url').value,
-    apk_changelog: document.getElementById('apk-changelog').value
-  };
-  if(!data.apk_url || !data.apk_version) { toast('URL and version required','er'); return; }
+function apkFileSelected() {
+  const file = document.getElementById('apk-file').files[0];
+  if(file) document.getElementById('apk-zone-lbl').textContent = file.name + ' (' + (file.size/1024/1024).toFixed(1) + ' MB)';
+}
+
+async function uploadApk() {
+  const file = document.getElementById('apk-file').files[0];
+  const version = document.getElementById('apk-version').value.trim();
+  const name = document.getElementById('apk-name').value.trim();
+  const changelog = document.getElementById('apk-changelog').value.trim();
+  const btn = document.getElementById('apk-upload-btn');
+
+  if(!file) { toast('Select an APK file','er'); return; }
+  if(!version) { toast('Version is required','er'); return; }
+
+  const fd = new FormData();
+  fd.append('apk', file);
+  fd.append('version', version);
+  fd.append('appname', name || 'MASTER BIOMEDS');
+  fd.append('changelog', changelog);
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading...';
+  document.getElementById('apk-prog').style.display = 'block';
+
+  // Simulate progress
+  let pct = 0;
+  const iv = setInterval(() => {
+    pct = Math.min(pct + 3, 90);
+    document.getElementById('apk-fill').style.width = pct + '%';
+    document.getElementById('apk-pct').textContent = pct + '%';
+  }, 300);
+
   try {
-    const r = await aFetch('/api/mbx9k/apk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const r = await fetch('/api/mbx9k/apk/upload', {
+      method: 'POST',
+      headers: { 'x-admin-token': adminToken },
+      body: fd
+    });
     const d = await r.json();
-    if(d.success) { toast('APK info saved!','ok'); loadApkAdmin(); }
-    else toast(d.message||'Error','er');
-  } catch(e) { toast('Error saving','er'); }
+    clearInterval(iv);
+    document.getElementById('apk-fill').style.width = '100%';
+    document.getElementById('apk-pct').textContent = '100%';
+
+    if(d.success) {
+      toast(d.message, 'ok');
+      loadApkAdmin();
+      document.getElementById('apk-file').value = '';
+      document.getElementById('apk-zone-lbl').textContent = 'Click to select APK file';
+    } else {
+      toast(d.message || 'Upload failed', 'er');
+    }
+  } catch(e) {
+    clearInterval(iv);
+    toast('Upload error: ' + e.message, 'er');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Upload APK';
+  setTimeout(() => { document.getElementById('apk-prog').style.display = 'none'; }, 2000);
 }
 </script>
 </body>

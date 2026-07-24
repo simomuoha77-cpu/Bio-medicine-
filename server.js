@@ -923,6 +923,48 @@ function registerAdminRoutes(prefix) {
 
   // APK Management
   app.get(`${prefix}/apk`, adminAuth, async (req, res) => {
+    const keys = ["apk_version","apk_size","apk_changelog","apk_name","apk_file_id"];
+    const settings = await Settings.find({ key: { $in: keys } });
+    const info = {};
+    settings.forEach(s => info[s.key] = s.value);
+    res.json({ success: true, apk: info });
+  });
+
+  app.post(`${prefix}/apk/upload`, adminAuth, apkUpload.single("apk"), async (req, res) => {
+    try {
+      if(!req.file) return res.json({ success: false, message: "No APK file uploaded" });
+      const { version, changelog, appname } = req.body;
+      if(!version) return res.json({ success: false, message: "Version required" });
+
+      // Delete old APK from GridFS
+      const oldSetting = await Settings.findOne({ key: "apk_file_id" });
+      if(oldSetting?.value) {
+        try { await gfsBucket.delete(new mongoose.Types.ObjectId(oldSetting.value)); } catch(e) {}
+      }
+
+      // Upload new APK to GridFS
+      const fileId = await uploadToGridFS(req.file.buffer, req.file.originalname, "application/vnd.android.package-archive");
+      const sizeMB = (req.file.size / 1024 / 1024).toFixed(1) + " MB";
+
+      // Save settings
+      const updates = {
+        apk_file_id:  fileId.toString(),
+        apk_version:  version,
+        apk_size:     sizeMB,
+        apk_name:     appname || "MASTER BIOMEDS",
+        apk_changelog: changelog || ""
+      };
+      for(const [key, value] of Object.entries(updates)) {
+        await Settings.findOneAndUpdate({ key }, { key, value: String(value), updatedAt: new Date() }, { upsert: true });
+      }
+      await logActivity("apk_update", `APK uploaded: v${version} (${sizeMB})`, "admin001");
+      res.json({ success: true, message: `APK v${version} uploaded successfully! (${sizeMB})` });
+    } catch(e) {
+      res.json({ success: false, message: e.message });
+    }
+  });
+
+  app.get(`${prefix}/apk`, adminAuth, async (req, res) => {, adminAuth, async (req, res) => {
     const keys = ["apk_version","apk_url","apk_size","apk_changelog","apk_name"];
     const settings = await Settings.find({ key: { $in: keys } });
     const info = {};
@@ -952,6 +994,48 @@ function registerAdminRoutes(prefix) {
 
   // APK Management
   app.get(`${prefix}/apk`, adminAuth, async (req, res) => {
+    const keys = ["apk_version","apk_size","apk_changelog","apk_name","apk_file_id"];
+    const settings = await Settings.find({ key: { $in: keys } });
+    const info = {};
+    settings.forEach(s => info[s.key] = s.value);
+    res.json({ success: true, apk: info });
+  });
+
+  app.post(`${prefix}/apk/upload`, adminAuth, apkUpload.single("apk"), async (req, res) => {
+    try {
+      if(!req.file) return res.json({ success: false, message: "No APK file uploaded" });
+      const { version, changelog, appname } = req.body;
+      if(!version) return res.json({ success: false, message: "Version required" });
+
+      // Delete old APK from GridFS
+      const oldSetting = await Settings.findOne({ key: "apk_file_id" });
+      if(oldSetting?.value) {
+        try { await gfsBucket.delete(new mongoose.Types.ObjectId(oldSetting.value)); } catch(e) {}
+      }
+
+      // Upload new APK to GridFS
+      const fileId = await uploadToGridFS(req.file.buffer, req.file.originalname, "application/vnd.android.package-archive");
+      const sizeMB = (req.file.size / 1024 / 1024).toFixed(1) + " MB";
+
+      // Save settings
+      const updates = {
+        apk_file_id:  fileId.toString(),
+        apk_version:  version,
+        apk_size:     sizeMB,
+        apk_name:     appname || "MASTER BIOMEDS",
+        apk_changelog: changelog || ""
+      };
+      for(const [key, value] of Object.entries(updates)) {
+        await Settings.findOneAndUpdate({ key }, { key, value: String(value), updatedAt: new Date() }, { upsert: true });
+      }
+      await logActivity("apk_update", `APK uploaded: v${version} (${sizeMB})`, "admin001");
+      res.json({ success: true, message: `APK v${version} uploaded successfully! (${sizeMB})` });
+    } catch(e) {
+      res.json({ success: false, message: e.message });
+    }
+  });
+
+  app.get(`${prefix}/apk`, adminAuth, async (req, res) => {, adminAuth, async (req, res) => {
     const keys = ["apk_version","apk_url","apk_size","apk_changelog","apk_name"];
     const settings = await Settings.find({ key: { $in: keys } });
     const info = {};
@@ -998,6 +1082,54 @@ app.get("/api/thumbnail/:fileId", async (req, res) => {
     res.set("Content-Type", files[0].contentType || "image/jpeg");
     gfsBucket.openDownloadStream(fileId).pipe(res);
   } catch(e) { res.status(404).send("Not found"); }
+});
+
+// ============================
+// APK UPLOAD & DOWNLOAD
+// ============================
+const apkUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB
+  fileFilter: (req, file, cb) => {
+    if(file.originalname.endsWith('.apk') || file.mimetype === 'application/vnd.android.package-archive') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only APK files allowed'));
+    }
+  }
+});
+
+// Public APK info
+app.get("/api/apk/info", async (req, res) => {
+  try {
+    const keys = ["apk_version","apk_size","apk_changelog","apk_name","apk_file_id"];
+    const settings = await Settings.find({ key: { $in: keys } });
+    const info = {};
+    settings.forEach(s => info[s.key] = s.value);
+    res.json({ success: true, apk: info });
+  } catch(e) {
+    res.json({ success: false, apk: {} });
+  }
+});
+
+// Public APK download
+app.get("/api/apk/download", async (req, res) => {
+  try {
+    const setting = await Settings.findOne({ key: "apk_file_id" });
+    if(!setting) return res.status(404).json({ success: false, message: "No APK available" });
+    const fileId = new mongoose.Types.ObjectId(setting.value);
+    const files  = await gfsBucket.find({ _id: fileId }).toArray();
+    if(!files.length) return res.status(404).json({ success: false, message: "APK file not found" });
+    const nameSetting = await Settings.findOne({ key: "apk_name" });
+    const verSetting  = await Settings.findOne({ key: "apk_version" });
+    const fileName    = (nameSetting?.value || "MASTER-BIOMEDS") + "-v" + (verSetting?.value || "1.0") + ".apk";
+    res.set("Content-Type", "application/vnd.android.package-archive");
+    res.set("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.set("Content-Length", files[0].length);
+    gfsBucket.openDownloadStream(fileId).pipe(res);
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
 });
 
 // ============================
