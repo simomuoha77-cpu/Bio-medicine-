@@ -683,6 +683,12 @@ app.post("/api/mbx9k/auth",  handleAdminAuth);
 // ============================
 // ADMIN ROUTES
 // ============================
+const apkUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 200 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => { cb(null, true); }
+});
+
 function registerAdminRoutes(prefix) {
 
   app.get(`${prefix}/stats`, adminAuth, async (req, res) => {
@@ -922,14 +928,7 @@ function registerAdminRoutes(prefix) {
   });
 
   // APK Management
-  app.get(`${prefix}/apk`, adminAuth, async (req, res) => {
-    const keys = ["apk_version","apk_size","apk_changelog","apk_name","apk_file_id"];
-    const settings = await Settings.find({ key: { $in: keys } });
-    const info = {};
-    settings.forEach(s => info[s.key] = s.value);
-    res.json({ success: true, apk: info });
-  });
-
+  // APK Upload Route
   app.post(`${prefix}/apk/upload`, adminAuth, apkUpload.single("apk"), async (req, res) => {
     try {
       if(!req.file) return res.json({ success: false, message: "No APK file uploaded" });
@@ -946,121 +945,30 @@ function registerAdminRoutes(prefix) {
       const fileId = await uploadToGridFS(req.file.buffer, req.file.originalname, "application/vnd.android.package-archive");
       const sizeMB = (req.file.size / 1024 / 1024).toFixed(1) + " MB";
 
-      // Save settings
       const updates = {
-        apk_file_id:  fileId.toString(),
-        apk_version:  version,
-        apk_size:     sizeMB,
-        apk_name:     appname || "MASTER BIOMEDS",
+        apk_file_id: fileId.toString(),
+        apk_version: version,
+        apk_size: sizeMB,
+        apk_name: appname || "MASTER BIOMEDS",
         apk_changelog: changelog || ""
       };
       for(const [key, value] of Object.entries(updates)) {
         await Settings.findOneAndUpdate({ key }, { key, value: String(value), updatedAt: new Date() }, { upsert: true });
       }
       await logActivity("apk_update", `APK uploaded: v${version} (${sizeMB})`, "admin001");
-      res.json({ success: true, message: `APK v${version} uploaded successfully! (${sizeMB})` });
+      res.json({ success: true, message: `APK v${version} uploaded! (${sizeMB})` });
     } catch(e) {
+      console.error("APK upload error:", e.message);
       res.json({ success: false, message: e.message });
     }
   });
 
-  app.get(`${prefix}/apk`, adminAuth, async (req, res) => {, adminAuth, async (req, res) => {
-    const keys = ["apk_version","apk_url","apk_size","apk_changelog","apk_name"];
-    const settings = await Settings.find({ key: { $in: keys } });
-    const info = {};
-    settings.forEach(s => info[s.key] = s.value);
-    res.json({ success: true, apk: info });
-  });
-
-  app.post(`${prefix}/apk`, adminAuth, async (req, res) => {
-    const { apk_version, apk_url, apk_size, apk_changelog, apk_name } = req.body;
-    try {
-      const updates = { apk_version, apk_url, apk_size, apk_changelog, apk_name };
-      for (const [key, value] of Object.entries(updates)) {
-        if (value !== undefined) {
-          await Settings.findOneAndUpdate(
-            { key },
-            { key, value: String(value), updatedAt: new Date() },
-            { upsert: true, new: true }
-          );
-        }
-      }
-      await logActivity("apk_update", `APK updated: v${apk_version}`, "admin001");
-      res.json({ success: true, message: "APK info updated successfully!" });
-    } catch(e) {
-      res.json({ success: false, message: e.message });
-    }
-  });
-
-  // APK Management
   app.get(`${prefix}/apk`, adminAuth, async (req, res) => {
     const keys = ["apk_version","apk_size","apk_changelog","apk_name","apk_file_id"];
     const settings = await Settings.find({ key: { $in: keys } });
     const info = {};
     settings.forEach(s => info[s.key] = s.value);
     res.json({ success: true, apk: info });
-  });
-
-  app.post(`${prefix}/apk/upload`, adminAuth, apkUpload.single("apk"), async (req, res) => {
-    try {
-      if(!req.file) return res.json({ success: false, message: "No APK file uploaded" });
-      const { version, changelog, appname } = req.body;
-      if(!version) return res.json({ success: false, message: "Version required" });
-
-      // Delete old APK from GridFS
-      const oldSetting = await Settings.findOne({ key: "apk_file_id" });
-      if(oldSetting?.value) {
-        try { await gfsBucket.delete(new mongoose.Types.ObjectId(oldSetting.value)); } catch(e) {}
-      }
-
-      // Upload new APK to GridFS
-      const fileId = await uploadToGridFS(req.file.buffer, req.file.originalname, "application/vnd.android.package-archive");
-      const sizeMB = (req.file.size / 1024 / 1024).toFixed(1) + " MB";
-
-      // Save settings
-      const updates = {
-        apk_file_id:  fileId.toString(),
-        apk_version:  version,
-        apk_size:     sizeMB,
-        apk_name:     appname || "MASTER BIOMEDS",
-        apk_changelog: changelog || ""
-      };
-      for(const [key, value] of Object.entries(updates)) {
-        await Settings.findOneAndUpdate({ key }, { key, value: String(value), updatedAt: new Date() }, { upsert: true });
-      }
-      await logActivity("apk_update", `APK uploaded: v${version} (${sizeMB})`, "admin001");
-      res.json({ success: true, message: `APK v${version} uploaded successfully! (${sizeMB})` });
-    } catch(e) {
-      res.json({ success: false, message: e.message });
-    }
-  });
-
-  app.get(`${prefix}/apk`, adminAuth, async (req, res) => {, adminAuth, async (req, res) => {
-    const keys = ["apk_version","apk_url","apk_size","apk_changelog","apk_name"];
-    const settings = await Settings.find({ key: { $in: keys } });
-    const info = {};
-    settings.forEach(s => info[s.key] = s.value);
-    res.json({ success: true, apk: info });
-  });
-
-  app.post(`${prefix}/apk`, adminAuth, async (req, res) => {
-    const { apk_version, apk_url, apk_size, apk_changelog, apk_name } = req.body;
-    try {
-      const updates = { apk_version, apk_url, apk_size, apk_changelog, apk_name };
-      for (const [key, value] of Object.entries(updates)) {
-        if (value !== undefined) {
-          await Settings.findOneAndUpdate(
-            { key },
-            { key, value: String(value), updatedAt: new Date() },
-            { upsert: true, new: true }
-          );
-        }
-      }
-      await logActivity("apk_update", `APK updated: v${apk_version}`, "admin001");
-      res.json({ success: true, message: "APK info updated successfully!" });
-    } catch(e) {
-      res.json({ success: false, message: e.message });
-    }
   });
 
   app.get(`${prefix}/payments`, adminAuth, async (req, res) => {
@@ -1087,17 +995,7 @@ app.get("/api/thumbnail/:fileId", async (req, res) => {
 // ============================
 // APK UPLOAD & DOWNLOAD
 // ============================
-const apkUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB
-  fileFilter: (req, file, cb) => {
-    if(file.originalname.endsWith('.apk') || file.mimetype === 'application/vnd.android.package-archive') {
-      cb(null, true);
-    } else {
-      cb(new Error('Only APK files allowed'));
-    }
-  }
-});
+
 
 // Public APK info
 app.get("/api/apk/info", async (req, res) => {
