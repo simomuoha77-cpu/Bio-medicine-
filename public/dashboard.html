@@ -274,27 +274,23 @@ body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-he
     <p>Medical Learning Platform</p>
   </div>
   <nav class="nav">
-    <div class="nav-section">Main</div>
-    <button class="nav-btn active" onclick="goTo('home',this)"><i class="fa-solid fa-house"></i> Dashboard</button>
-    <button class="nav-btn" onclick="goTo('library',this)"><i class="fa-solid fa-book-medical"></i> PDF Library</button>
-    <button class="nav-btn" onclick="goTo('downloads',this)"><i class="fa-solid fa-download"></i> My Downloads</button>
-    <button class="nav-btn" onclick="goTo('purchases',this)"><i class="fa-solid fa-receipt"></i> My Purchases</button>
-    <button class="nav-btn" onclick="goTo('notifications',this)"><i class="fa-solid fa-bell"></i> Notifications</button>
-    <button class="nav-btn" onclick="goTo('apk',this)"><i class="fa-solid fa-mobile-screen-button"></i> Download App</button>
-    <button class="nav-btn" onclick="goTo('notifications',this)"><i class="fa-solid fa-bell"></i> Notifications</button>
-    <button class="nav-btn" onclick="goTo('notifications',this)"><i class="fa-solid fa-bell"></i> Notifications<span id="notif-badge" style="display:none;background:#ff4757;color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:auto;">0</span></button>
-    <div class="nav-section">AI Tools</div>
-    <button class="nav-btn" onclick="goTo('ai',this)" id="ai-nav-btn">
-      <i class="fa-solid fa-robot"></i> MedBot AI
-      <span class="ai-badge" id="ai-nav-pts">5 pts</span>
-    </button>
-    <div class="nav-section">Account</div>
-    <button class="nav-btn" onclick="goTo('profile',this)"><i class="fa-solid fa-user"></i> Profile</button>
-    <a href="/about.html" class="nav-btn" style="text-decoration:none;"><i class="fa-solid fa-circle-info"></i> About Us</a>
-    <a href="/privacy.html" class="nav-btn" style="text-decoration:none;"><i class="fa-solid fa-shield-halved"></i> Privacy</a>
-    <a href="/about.html" class="nav-btn" style="text-decoration:none;"><i class="fa-solid fa-circle-info"></i> About Us</a>
-    <a href="/privacy.html" class="nav-btn" style="text-decoration:none;"><i class="fa-solid fa-shield-halved"></i> Privacy</a>
-  </nav>
+      <div class="nav-section">Main</div>
+      <button class="nav-btn active" onclick="goTo('home',this)"><i class="fa-solid fa-house"></i> Dashboard</button>
+      <button class="nav-btn" onclick="goTo('library',this)"><i class="fa-solid fa-book-medical"></i> PDF Library</button>
+      <button class="nav-btn" onclick="goTo('downloads',this)"><i class="fa-solid fa-download"></i> My Downloads</button>
+      <button class="nav-btn" onclick="goTo('purchases',this)"><i class="fa-solid fa-receipt"></i> My Purchases</button>
+      <button class="nav-btn" onclick="goTo('notifications',this)"><i class="fa-solid fa-bell"></i> Notifications</button>
+      <button class="nav-btn" onclick="goTo('apk',this)"><i class="fa-solid fa-mobile-screen-button"></i> Download App</button>
+      <div class="nav-section">AI Tools</div>
+      <button class="nav-btn" onclick="goTo('ai',this)" id="ai-nav-btn">
+        <i class="fa-solid fa-robot"></i> MedBot AI
+        <span class="ai-badge" id="ai-nav-pts">5 pts</span>
+      </button>
+      <div class="nav-section">Account</div>
+      <button class="nav-btn" onclick="goTo('profile',this)"><i class="fa-solid fa-user"></i> Profile</button>
+      <a href="/about.html" class="nav-btn" style="text-decoration:none;"><i class="fa-solid fa-circle-info"></i> About Us</a>
+      <a href="/privacy.html" class="nav-btn" style="text-decoration:none;"><i class="fa-solid fa-shield-halved"></i> Privacy</a>
+    </nav>
   <div class="sidebar-footer">
     <div class="user-card">
       <div class="user-avatar" id="av-letter">S</div>
@@ -866,30 +862,7 @@ async function loadNotifications() {
   }
 }
 
-async function loadNotifications() {
-  const el = document.getElementById('notif-list');
-  if(!el) return;
-  el.innerHTML = '<div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading...</p></div>';
-  try {
-    const r = await fetch('/api/notifications');
-    const d = await r.json();
-    if(!d.success || !d.notifications.length) {
-      el.innerHTML = '<div class="empty"><i class="fa-solid fa-bell-slash"></i><p>No notifications yet</p></div>';
-      return;
-    }
-    el.innerHTML = d.notifications.map(function(n) {
-      var c = n.type=='upload'?'#00ff88':n.type=='maintenance'?'#ff9f43':'#00d9ff';
-      return '<div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px;">' +
-        '<div style="font-size:10px;font-weight:700;color:'+c+';margin-bottom:6px;">'+n.type.toUpperCase()+'</div>' +
-        '<div style="font-size:14px;font-weight:600;margin-bottom:5px;">'+n.title+'</div>' +
-        '<div style="font-size:12px;color:var(--muted);line-height:1.6;white-space:pre-line;margin-bottom:8px;">'+n.message+'</div>' +
-        '<div style="font-size:10px;color:var(--muted);">'+new Date(n.sentAt).toLocaleString()+'</div>' +
-        '</div>';
-    }).join('');
-  } catch(e) {
-    el.innerHTML = '<div class="empty"><p>Failed to load notifications</p></div>';
-  }
-}
+
 
 async function loadApkInfo() {
   const el = document.getElementById('apk-wrap');
