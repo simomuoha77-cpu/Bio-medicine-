@@ -60,6 +60,8 @@ const userSchema = new mongoose.Schema({
   aiPointsResetAt: { type: Date, default: () => new Date(Date.now() + 24*60*60*1000) },
   aiUsageCount:    { type: Number, default: 0 },
   purchasedPdfs:   { type: [String], default: [] },
+  resetOtp:        { type: String, default: null },
+  resetOtpExpiry:  { type: Date, default: null },
   createdAt:       { type: Date, default: Date.now },
   lastLogin:       { type: Date, default: Date.now }
 });
@@ -332,6 +334,73 @@ app.post("/login", async (req, res) => {
     });
   } catch (err) {
     res.json({ success: false, message: "Login failed" });
+  }
+});
+
+// ── FORGOT PASSWORD — sends a 6-digit OTP by email ──
+app.post("/api/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.json({ success: false, message: "Email required" });
+    const user = await User.findOne({ email });
+    // Always return the same message whether or not the account exists,
+    // so this endpoint can't be used to check which emails are registered.
+    const genericMsg = "If that email is registered, a reset code has been sent.";
+    if (!user) return res.json({ success: true, message: genericMsg });
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    user.resetOtp = otp;
+    user.resetOtpExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+    await user.save();
+
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: user.email,
+        subject: "MASTER BIOMEDS — Password Reset Code",
+        html: `<div style="background:#071018;padding:30px;color:white;font-family:Arial;border-radius:12px;">
+          <h2 style="color:#00d9ff;">Password Reset</h2>
+          <p style="color:#9fb4c2;line-height:1.6;">Use this code to reset your password. It expires in 15 minutes.</p>
+          <div style="background:#0b1622;border-radius:8px;padding:20px;margin:16px 0;text-align:center;">
+            <span style="font-size:32px;letter-spacing:8px;font-weight:700;color:#00d9ff;">${otp}</span>
+          </div>
+          <p style="color:#5a7a8a;font-size:12px;">If you didn't request this, you can safely ignore this email.</p>
+        </div>`
+      });
+    } catch(emailErr) {
+      console.error("Reset email error:", emailErr.message);
+    }
+
+    await logActivity("forgot_password", `Reset code requested: ${email}`, user._id.toString());
+    res.json({ success: true, message: genericMsg });
+  } catch(err) {
+    res.json({ success: false, message: "Something went wrong" });
+  }
+});
+
+// ── RESET PASSWORD — verifies OTP and sets the new password ──
+app.post("/api/reset-password", async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) return res.json({ success: false, message: "All fields required" });
+    if (newPassword.length < 6) return res.json({ success: false, message: "Password must be at least 6 characters" });
+
+    const user = await User.findOne({ email });
+    if (!user || !user.resetOtp || !user.resetOtpExpiry)
+      return res.json({ success: false, message: "Invalid or expired code" });
+    if (user.resetOtp !== otp)
+      return res.json({ success: false, message: "Invalid or expired code" });
+    if (user.resetOtpExpiry < new Date())
+      return res.json({ success: false, message: "Code expired. Request a new one." });
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.resetOtp = null;
+    user.resetOtpExpiry = null;
+    await user.save();
+    await logActivity("reset_password", `Password reset: ${email}`, user._id.toString());
+    res.json({ success: true, message: "Password reset successfully. You can now sign in." });
+  } catch(err) {
+    res.json({ success: false, message: "Something went wrong" });
   }
 });
 

@@ -86,6 +86,10 @@ body{
     <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
   </div>
 
+  <div style="text-align:right;margin-bottom:6px;">
+    <a href="#" onclick="showForgot();return false;" style="color:#00d9ff;font-size:12px;text-decoration:none;">Forgot password?</a>
+  </div>
+
   <button class="btn-submit" id="login-btn" onclick="doLogin()">
     <span id="btn-text"><i class="fa-solid fa-right-to-bracket"></i> Sign In</span>
     <div class="loader" id="loader"></div>
@@ -95,6 +99,46 @@ body{
 
   <div class="bottom">
     Don't have an account? <a href="/register.html">Register here</a>
+  </div>
+</div>
+
+<!-- FORGOT PASSWORD -->
+<div class="box" id="forgot-box" style="display:none;">
+  <div class="logo">
+    <h1><i class="fa-solid fa-key"></i> Reset Password</h1>
+    <p id="forgot-sub">Enter your account email to receive a reset code</p>
+  </div>
+
+  <div id="forgot-step1">
+    <div class="field">
+      <label>Email Address</label>
+      <input type="email" id="forgot-email" placeholder="your@email.com" autocomplete="email">
+    </div>
+    <button class="btn-submit" id="forgot-btn1" onclick="sendResetCode()">
+      <span id="forgot-btn1-text"><i class="fa-solid fa-paper-plane"></i> Send Reset Code</span>
+      <div class="loader" id="forgot-loader1"></div>
+    </button>
+  </div>
+
+  <div id="forgot-step2" style="display:none;">
+    <div class="field">
+      <label>6-Digit Code</label>
+      <input type="text" id="reset-otp" placeholder="123456" maxlength="6" inputmode="numeric">
+    </div>
+    <div class="field">
+      <label>New Password</label>
+      <input type="password" id="reset-newpass" placeholder="••••••••" autocomplete="new-password">
+    </div>
+    <button class="btn-submit" id="forgot-btn2" onclick="submitReset()">
+      <span id="forgot-btn2-text"><i class="fa-solid fa-check"></i> Reset Password</span>
+      <div class="loader" id="forgot-loader2"></div>
+    </button>
+  </div>
+
+  <div class="msg" id="forgot-msg"></div>
+
+  <div class="bottom">
+    <a href="#" onclick="showLogin();return false;">← Back to Sign In</a>
   </div>
 </div>
 
@@ -169,6 +213,67 @@ function showMsg(text, type) {
   el.textContent    = text;
   el.className      = "msg " + type;
   el.style.display  = "block";
+}
+
+// ── FORGOT PASSWORD FLOW ──
+function showForgot(){
+  document.querySelector('.box').style.display='none';
+  document.getElementById('forgot-box').style.display='block';
+}
+function showLogin(){
+  document.getElementById('forgot-box').style.display='none';
+  document.querySelector('.box').style.display='block';
+  document.getElementById('forgot-step1').style.display='block';
+  document.getElementById('forgot-step2').style.display='none';
+  document.getElementById('forgot-msg').style.display='none';
+}
+function showForgotMsg(text,type){
+  const el=document.getElementById('forgot-msg');
+  el.textContent=text; el.className='msg '+type; el.style.display='block';
+}
+
+let resetEmail='';
+
+async function sendResetCode(){
+  const email=document.getElementById('forgot-email').value.trim();
+  if(!email){ showForgotMsg('Please enter your email','error'); return; }
+  const btn=document.getElementById('forgot-btn1'), btnText=document.getElementById('forgot-btn1-text'), loader=document.getElementById('forgot-loader1');
+  btn.disabled=true; btnText.style.display='none'; loader.style.display='block';
+  document.getElementById('forgot-msg').style.display='none';
+  try{
+    const res=await fetch('/api/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    const data=await res.json();
+    resetEmail=email;
+    showForgotMsg(data.message,'success');
+    document.getElementById('forgot-step1').style.display='none';
+    document.getElementById('forgot-step2').style.display='block';
+    document.getElementById('forgot-sub').textContent='Enter the code sent to '+email;
+  }catch(e){
+    showForgotMsg('Connection error. Try again.','error');
+  }
+  btn.disabled=false; btnText.style.display='inline'; loader.style.display='none';
+}
+
+async function submitReset(){
+  const otp=document.getElementById('reset-otp').value.trim();
+  const newPassword=document.getElementById('reset-newpass').value;
+  if(!otp||!newPassword){ showForgotMsg('Please fill in all fields','error'); return; }
+  const btn=document.getElementById('forgot-btn2'), btnText=document.getElementById('forgot-btn2-text'), loader=document.getElementById('forgot-loader2');
+  btn.disabled=true; btnText.style.display='none'; loader.style.display='block';
+  document.getElementById('forgot-msg').style.display='none';
+  try{
+    const res=await fetch('/api/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:resetEmail,otp,newPassword})});
+    const data=await res.json();
+    if(data.success){
+      showForgotMsg(data.message,'success');
+      setTimeout(showLogin,1500);
+    }else{
+      showForgotMsg(data.message,'error');
+    }
+  }catch(e){
+    showForgotMsg('Connection error. Try again.','error');
+  }
+  btn.disabled=false; btnText.style.display='inline'; loader.style.display='none';
 }
 </script>
 </body>
