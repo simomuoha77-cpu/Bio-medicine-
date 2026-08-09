@@ -477,9 +477,11 @@ function pdfCard(p){
 
   let actionBtn='';
   if(isPublic){
-    actionBtn=`<button class="pdf-dl-btn" onclick="dlPdf('${p._id}','${p.title.replace(/'/g,"\\'")}')"><i class="fa-solid fa-download"></i> Download Free</button>`;
+    actionBtn=`<button class="pdf-dl-btn" onclick="dlPdf('${p._id}','${p.title.replace(/'/g,"\\'")}')"><i class="fa-solid fa-download"></i> Download Free</button>
+    <button class="pdf-buy-btn" style="background:rgba(0,180,216,0.15);color:#00b4d8;" onclick="previewPdf('${p._id}')"><i class="fa-solid fa-eye"></i> Preview</button>`;
   } else if(isPurchased){
     actionBtn=`<button class="pdf-dl-btn" onclick="dlPdf('${p._id}','${p.title.replace(/'/g,"\\'")}')"><i class="fa-solid fa-download"></i> Download</button>
+    <button class="pdf-buy-btn" style="background:rgba(0,180,216,0.15);color:#00b4d8;" onclick="previewPdf('${p._id}')"><i class="fa-solid fa-eye"></i> Preview</button>
     <button class="pdf-buy-btn" style="background:rgba(0,200,83,0.15);color:var(--mpesa);cursor:default;"><i class="fa-solid fa-check-circle"></i> Purchased ✓</button>`;
   } else {
     const buyBtn = p.price&&p.price>0
@@ -566,6 +568,10 @@ function onSearch(){
     catName(p.category).toLowerCase().includes(q)
   ));
   goTo('library',null);
+}
+
+function previewPdf(id){
+  window.open(`/api/pdfs/${id}/preview`,'_blank');
 }
 
 function dlPdf(id,title){

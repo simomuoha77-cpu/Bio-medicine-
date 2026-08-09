@@ -416,6 +416,30 @@ app.get("/api/categories", async (req, res) => {
   res.json({ success: true, categories: cats });
 });
 
+// ── PREVIEW — serves from GridFS inline, does NOT count as a download ──
+app.get("/api/pdfs/:id/preview", async (req, res) => {
+  try {
+    const pdf = await PDF.findById(req.params.id);
+    if (!pdf) return res.status(404).send("File not found");
+
+    pdf.views = (pdf.views || 0) + 1;
+    await pdf.save();
+
+    if (pdf.fileId) {
+      const fileId = new mongoose.Types.ObjectId(pdf.fileId);
+      const files  = await gfsBucket.find({ _id: fileId }).toArray();
+      if (files.length) {
+        res.set("Content-Disposition", `inline; filename="${pdf.title}.${pdf.fileType || "pdf"}"`);
+        res.set("Content-Type", files[0].contentType || "application/pdf");
+        return gfsBucket.openDownloadStream(fileId).pipe(res);
+      }
+    }
+    return res.status(404).send("File not found on server. Please re-upload.");
+  } catch(e) {
+    res.status(500).send(e.message);
+  }
+});
+
 // ── DOWNLOAD — serves from GridFS ──
 app.get("/api/pdfs/:id/download", async (req, res) => {
   try {
