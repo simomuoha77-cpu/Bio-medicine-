@@ -528,7 +528,13 @@ function filterCat(id,btn){
 function onSearch(){
   const q=document.getElementById('gsearch').value.toLowerCase().trim();
   if(!q){ renderLibrary(allPdfs); return; }
-  renderLibrary(allPdfs.filter(p=>p.title.toLowerCase().includes(q)));
+  renderLibrary(allPdfs.filter(p=>
+    (p.title||'').toLowerCase().includes(q) ||
+    (p.description||'').toLowerCase().includes(q) ||
+    (p.subject||'').toLowerCase().includes(q) ||
+    (p.semester||'').toLowerCase().includes(q) ||
+    catName(p.category).toLowerCase().includes(q)
+  ));
   goTo('library',null);
 }
 
