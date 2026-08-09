@@ -62,6 +62,9 @@ const userSchema = new mongoose.Schema({
   purchasedPdfs:   { type: [String], default: [] },
   resetOtp:        { type: String, default: null },
   resetOtpExpiry:  { type: Date, default: null },
+  emailVerified:   { type: Boolean, default: true },
+  verifyOtp:       { type: String, default: null },
+  verifyOtpExpiry: { type: Date, default: null },
   createdAt:       { type: Date, default: Date.now },
   lastLogin:       { type: Date, default: Date.now }
 });
@@ -305,9 +308,33 @@ app.post("/register", async (req, res) => {
     if (await User.findOne({ email }))
       return res.json({ success: false, message: "Account already exists" });
     const hashed = await bcrypt.hash(password, 10);
-    const user   = await User.create({ username, email, password: hashed });
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const user = await User.create({
+      username, email, password: hashed,
+      emailVerified: false,
+      verifyOtp: otp,
+      verifyOtpExpiry: new Date(Date.now() + 15 * 60 * 1000)
+    });
+
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: "MASTER BIOMEDS — Verify Your Email",
+        html: `<div style="background:#071018;padding:30px;color:white;font-family:Arial;border-radius:12px;">
+          <h2 style="color:#00d9ff;">Welcome to MASTER BIOMEDS</h2>
+          <p style="color:#9fb4c2;line-height:1.6;">Use this code to verify your email and activate your account. It expires in 15 minutes.</p>
+          <div style="background:#0b1622;border-radius:8px;padding:20px;margin:16px 0;text-align:center;">
+            <span style="font-size:32px;letter-spacing:8px;font-weight:700;color:#00d9ff;">${otp}</span>
+          </div>
+        </div>`
+      });
+    } catch(emailErr) {
+      console.error("Verification email error:", emailErr.message);
+    }
+
     await logActivity("register", `Registered: ${email}`, user._id.toString());
-    res.json({ success: true, message: "Account created successfully" });
+    res.json({ success: true, message: "Account created. Check your email for a verification code.", email });
   } catch (err) {
     res.json({ success: false, message: "Registration failed" });
   }
@@ -315,6 +342,67 @@ app.post("/register", async (req, res) => {
 
 app.post("/verify", async (req, res) => {
   res.json({ success: true, message: "Verified" });
+});
+
+// ── VERIFY EMAIL ──
+app.post("/api/verify-email", async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.json({ success: false, message: "Email and code required" });
+    const user = await User.findOne({ email });
+    if (!user) return res.json({ success: false, message: "Account not found" });
+    if (user.emailVerified) return res.json({ success: true, message: "Already verified" });
+    if (!user.verifyOtp || user.verifyOtp !== otp)
+      return res.json({ success: false, message: "Invalid or expired code" });
+    if (user.verifyOtpExpiry < new Date())
+      return res.json({ success: false, message: "Code expired. Request a new one." });
+
+    user.emailVerified = true;
+    user.verifyOtp = null;
+    user.verifyOtpExpiry = null;
+    await user.save();
+    await logActivity("verify_email", `Email verified: ${email}`, user._id.toString());
+    res.json({ success: true, message: "Email verified! You can now sign in." });
+  } catch(err) {
+    res.json({ success: false, message: "Something went wrong" });
+  }
+});
+
+// ── RESEND VERIFICATION CODE ──
+app.post("/api/resend-verification", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.json({ success: false, message: "Email required" });
+    const user = await User.findOne({ email });
+    if (!user) return res.json({ success: false, message: "Account not found" });
+    if (user.emailVerified) return res.json({ success: true, message: "Already verified" });
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    user.verifyOtp = otp;
+    user.verifyOtpExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    await user.save();
+
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: "MASTER BIOMEDS — Verify Your Email",
+        html: `<div style="background:#071018;padding:30px;color:white;font-family:Arial;border-radius:12px;">
+          <h2 style="color:#00d9ff;">Verify Your Email</h2>
+          <p style="color:#9fb4c2;line-height:1.6;">Here's your new code. It expires in 15 minutes.</p>
+          <div style="background:#0b1622;border-radius:8px;padding:20px;margin:16px 0;text-align:center;">
+            <span style="font-size:32px;letter-spacing:8px;font-weight:700;color:#00d9ff;">${otp}</span>
+          </div>
+        </div>`
+      });
+    } catch(emailErr) {
+      console.error("Resend verification email error:", emailErr.message);
+    }
+
+    res.json({ success: true, message: "A new code has been sent." });
+  } catch(err) {
+    res.json({ success: false, message: "Something went wrong" });
+  }
 });
 
 app.post("/login", async (req, res) => {
@@ -325,6 +413,8 @@ app.post("/login", async (req, res) => {
     if (user.status === "suspended") return res.json({ success: false, message: "Account suspended" });
     if (!await bcrypt.compare(password, user.password))
       return res.json({ success: false, message: "Wrong password" });
+    if (!user.emailVerified)
+      return res.json({ success: false, message: "Please verify your email first", needsVerification: true, email: user.email });
     user.lastLogin = new Date();
     await user.save();
     const token = Buffer.from(`${user._id}:${Date.now()}`).toString("base64");

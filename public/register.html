@@ -108,10 +108,28 @@ body{
     <div class="bottom">Already have an account? <a href="/login.html">Login here</a></div>
   </div>
 
+  <!-- VERIFY EMAIL -->
+  <div id="form-verify" style="display:none;">
+    <p style="text-align:center;color:#9fb4c2;font-size:13px;margin-bottom:20px;">
+      We sent a 6-digit code to <strong id="verify-email-shown" style="color:#00d9ff;"></strong>. Enter it below to activate your account.
+    </p>
+    <div class="field">
+      <label>Verification Code</label>
+      <input type="text" id="verify-otp" placeholder="123456" maxlength="6" inputmode="numeric">
+    </div>
+    <button class="btn-submit" id="verify-btn" onclick="doVerify()">
+      <i class="fa-solid fa-check"></i> Verify Email
+    </button>
+    <div class="msg" id="verify-msg"></div>
+    <div class="bottom">
+      Didn't get a code? <a href="#" onclick="resendCode();return false;">Resend</a>
+    </div>
+  </div>
+
   <!-- SUCCESS -->
   <div class="done" id="form-done">
     <i class="fa-solid fa-circle-check"></i>
-    <h2>Account Created!</h2>
+    <h2>Email Verified!</h2>
     <p>Welcome to Master Biomeds. Redirecting to login...</p>
     <a href="/login.html">
       <button class="btn-submit"><i class="fa-solid fa-right-to-bracket"></i> Go to Login</button>
@@ -163,9 +181,10 @@ async function doRegister() {
     const data = await res.json();
 
     if (data.success) {
+      regEmail = email;
+      document.getElementById("verify-email-shown").textContent = email;
       document.getElementById("form-register").style.display = "none";
-      document.getElementById("form-done").style.display = "block";
-      setTimeout(() => { window.location.href = "/login.html"; }, 2500);
+      document.getElementById("form-verify").style.display = "block";
     } else {
       showMsg("reg-msg", data.message || "Registration failed", "error");
       btn.disabled = false;
@@ -178,9 +197,62 @@ async function doRegister() {
   }
 }
 
+let regEmail = "";
+
+async function doVerify() {
+  const otp = document.getElementById("verify-otp").value.trim();
+  const btn = document.getElementById("verify-btn");
+  hideMsg("verify-msg");
+  if (!otp) { showMsg("verify-msg","Enter the code","error"); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Verifying...';
+
+  try {
+    const res  = await fetch("/api/verify-email", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ email: regEmail, otp })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      document.getElementById("form-verify").style.display = "none";
+      document.getElementById("form-done").style.display = "block";
+      setTimeout(() => { window.location.href = "/login.html"; }, 2000);
+    } else {
+      showMsg("verify-msg", data.message || "Verification failed", "error");
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-check"></i> Verify Email';
+    }
+  } catch {
+    showMsg("verify-msg","Connection error. Please try again.","error");
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-check"></i> Verify Email';
+  }
+}
+
+async function resendCode() {
+  hideMsg("verify-msg");
+  try {
+    const res  = await fetch("/api/resend-verification", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ email: regEmail })
+    });
+    const data = await res.json();
+    showMsg("verify-msg", data.message, data.success ? "success" : "error");
+  } catch {
+    showMsg("verify-msg","Connection error. Please try again.","error");
+  }
+}
+
 // Allow Enter key
 document.addEventListener("keydown", e => {
-  if (e.key === "Enter") doRegister();
+  if (e.key === "Enter") {
+    if (document.getElementById("form-verify").style.display === "block") doVerify();
+    else doRegister();
+  }
 });
 
 function showMsg(id, text, type) {

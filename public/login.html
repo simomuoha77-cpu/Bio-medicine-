@@ -142,6 +142,30 @@ body{
   </div>
 </div>
 
+<!-- VERIFY EMAIL (for unverified accounts trying to log in) -->
+<div class="box" id="verify-box" style="display:none;">
+  <div class="logo">
+    <h1><i class="fa-solid fa-envelope-circle-check"></i> Verify Your Email</h1>
+    <p>Enter the code sent to <strong id="verify-email-shown" style="color:#00d9ff;"></strong></p>
+  </div>
+
+  <div class="field">
+    <label>Verification Code</label>
+    <input type="text" id="login-verify-otp" placeholder="123456" maxlength="6" inputmode="numeric">
+  </div>
+  <button class="btn-submit" id="verify-login-btn" onclick="doVerifyFromLogin()">
+    <span id="verify-login-btn-text"><i class="fa-solid fa-check"></i> Verify & Sign In</span>
+    <div class="loader" id="verify-login-loader"></div>
+  </button>
+
+  <div class="msg" id="verify-login-msg"></div>
+
+  <div class="bottom">
+    Didn't get a code? <a href="#" onclick="resendLoginVerify();return false;">Resend</a><br><br>
+    <a href="#" onclick="showLogin();return false;">← Back to Sign In</a>
+  </div>
+</div>
+
 <script>
 // If already logged in, go straight to dashboard
 if (localStorage.getItem("biomeds_token")) {
@@ -193,6 +217,15 @@ async function doLogin() {
         window.location.href = "/dashboard.html";
       }, 800);
 
+    } else if (data.needsVerification) {
+      pendingVerifyEmail = data.email || email;
+      pendingVerifyPassword = password;
+      document.getElementById("verify-email-shown").textContent = pendingVerifyEmail;
+      document.querySelector('.box').style.display='none';
+      document.getElementById('verify-box').style.display='block';
+      btn.disabled        = false;
+      btnText.style.display = "inline";
+      loader.style.display  = "none";
     } else {
       showMsg(data.message || "Login failed", "error");
       btn.disabled        = false;
@@ -222,6 +255,7 @@ function showForgot(){
 }
 function showLogin(){
   document.getElementById('forgot-box').style.display='none';
+  document.getElementById('verify-box').style.display='none';
   document.querySelector('.box').style.display='block';
   document.getElementById('forgot-step1').style.display='block';
   document.getElementById('forgot-step2').style.display='none';
@@ -274,6 +308,56 @@ async function submitReset(){
     showForgotMsg('Connection error. Try again.','error');
   }
   btn.disabled=false; btnText.style.display='inline'; loader.style.display='none';
+}
+
+// ── VERIFY EMAIL (unverified account trying to log in) ──
+let pendingVerifyEmail='', pendingVerifyPassword='';
+
+function showVerifyMsg(text,type){
+  const el=document.getElementById('verify-login-msg');
+  el.textContent=text; el.className='msg '+type; el.style.display='block';
+}
+
+async function doVerifyFromLogin(){
+  const otp=document.getElementById('login-verify-otp').value.trim();
+  if(!otp){ showVerifyMsg('Enter the code','error'); return; }
+  const btn=document.getElementById('verify-login-btn'), btnText=document.getElementById('verify-login-btn-text'), loader=document.getElementById('verify-login-loader');
+  btn.disabled=true; btnText.style.display='none'; loader.style.display='block';
+  document.getElementById('verify-login-msg').style.display='none';
+  try{
+    const res=await fetch('/api/verify-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:pendingVerifyEmail,otp})});
+    const data=await res.json();
+    if(data.success){
+      showVerifyMsg('Verified! Signing you in...','success');
+      // Auto-login now that the account is verified
+      const loginRes=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:pendingVerifyEmail,password:pendingVerifyPassword})});
+      const loginData=await loginRes.json();
+      if(loginData.success){
+        localStorage.setItem("biomeds_token", loginData.token);
+        localStorage.setItem("biomeds_user",  JSON.stringify(loginData.user));
+        setTimeout(()=>{ window.location.href="/dashboard.html"; },600);
+      }else{
+        setTimeout(showLogin,1200);
+      }
+    }else{
+      showVerifyMsg(data.message,'error');
+      btn.disabled=false; btnText.style.display='inline'; loader.style.display='none';
+    }
+  }catch(e){
+    showVerifyMsg('Connection error. Try again.','error');
+    btn.disabled=false; btnText.style.display='inline'; loader.style.display='none';
+  }
+}
+
+async function resendLoginVerify(){
+  document.getElementById('verify-login-msg').style.display='none';
+  try{
+    const res=await fetch('/api/resend-verification',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:pendingVerifyEmail})});
+    const data=await res.json();
+    showVerifyMsg(data.message,data.success?'success':'error');
+  }catch(e){
+    showVerifyMsg('Connection error. Try again.','error');
+  }
 }
 </script>
 </body>
