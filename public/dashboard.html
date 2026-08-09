@@ -302,7 +302,16 @@ body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-he
   <!-- LIBRARY -->
   <div class="section" id="sec-library">
     <div class="sec-hdr"><h2>PDF Library</h2><span style="font-size:13px;color:var(--muted);" id="lib-count"></span></div>
-    <div class="cat-bar" id="cat-bar"><button class="cat-btn active" onclick="filterCat('',this)">All</button></div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+      <div class="cat-bar" id="cat-bar" style="margin-bottom:0;flex:1;"><button class="cat-btn active" onclick="filterCat('',this)">All</button></div>
+      <select id="lib-sort" onchange="onSortChange()" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:0 10px;height:34px;font-family:'Sora',sans-serif;font-size:13px;">
+        <option value="az">A → Z</option>
+        <option value="za">Z → A</option>
+        <option value="views">Most Viewed</option>
+        <option value="downloads">Most Downloaded</option>
+        <option value="newest">Newest</option>
+      </select>
+    </div>
     <div class="pdf-grid" id="lib-pdfs"><div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading...</p></div></div>
   </div>
 
@@ -501,10 +510,27 @@ function renderHomePdfs(){
   el.innerHTML = allPdfs.length ? allPdfs.slice(0,8).map(pdfCard).join('') : `<div class="empty"><i class="fa-solid fa-book-medical"></i><p>No PDFs yet</p></div>`;
 }
 
+let lastLibList=[];
+
+function sortList(list){
+  const mode=document.getElementById('lib-sort')?.value||'az';
+  const arr=[...list];
+  if(mode==='az') arr.sort((a,b)=>(a.title||'').localeCompare(b.title||''));
+  else if(mode==='za') arr.sort((a,b)=>(b.title||'').localeCompare(a.title||''));
+  else if(mode==='views') arr.sort((a,b)=>(b.views||0)-(a.views||0));
+  else if(mode==='downloads') arr.sort((a,b)=>(b.downloads||0)-(a.downloads||0));
+  else if(mode==='newest') arr.sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0));
+  return arr;
+}
+
+function onSortChange(){ renderLibrary(lastLibList); }
+
 function renderLibrary(list){
-  document.getElementById('lib-count').textContent=`${list.length} books`;
+  lastLibList=list;
+  const sorted=sortList(list);
+  document.getElementById('lib-count').textContent=`${sorted.length} books`;
   const el=document.getElementById('lib-pdfs');
-  el.innerHTML = list.length ? list.map(pdfCard).join('') : `<div class="empty"><i class="fa-solid fa-search"></i><p>No PDFs found</p></div>`;
+  el.innerHTML = sorted.length ? sorted.map(pdfCard).join('') : `<div class="empty"><i class="fa-solid fa-search"></i><p>No PDFs found</p></div>`;
 }
 
 function buildCatBar(){
