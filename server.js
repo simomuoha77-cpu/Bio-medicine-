@@ -148,20 +148,6 @@ const AiChat       = mongoose.model("AiChat",       aiChatSchema);
 const Settings     = mongoose.model("Settings",     settingsSchema);
 const Payment      = mongoose.model("Payment",      paymentSchema);
 
-// APK Settings stored in Settings collection
-// key: "apk_version", value: "1.0.0"
-// key: "apk_url", value: "https://..."
-// key: "apk_size", value: "12.5 MB"
-// key: "apk_changelog", value: "..."
-
-
-// APK Settings stored in Settings collection
-// key: "apk_version", value: "1.0.0"
-// key: "apk_url", value: "https://..."
-// key: "apk_size", value: "12.5 MB"
-// key: "apk_changelog", value: "..."
-
-
 // ============================
 // ALLOWED FILE TYPES
 // ============================
@@ -367,64 +353,11 @@ app.get("/about", (req, res) => res.sendFile(process.cwd() + "/public/about.html
 app.get("/about.html", (req, res) => res.sendFile(process.cwd() + "/public/about.html"));
 
 // ============================
-// GET GEMINI KEY FOR BROWSER
-// ============================
-app.get("/api/ai/getkey", userAuth, async (req, res) => {
-  try {
-    const k = await Settings.findOne({ key: "gemini_api_key" });
-    const key = k?.value || process.env.GEMINI_API_KEY || "";
-    res.json({ success:true, key });
-  } catch(e) { res.json({ success:false, key:"" }); }
-});
-
-// ============================
-// PUBLIC APK INFO
-// ============================
-app.get("/api/apk/info", async (req, res) => {
-  try {
-    const keys = ["apk_version","apk_url","apk_size","apk_changelog","apk_name"];
-    const settings = await Settings.find({ key: { $in: keys } });
-    const info = {};
-    settings.forEach(s => info[s.key] = s.value);
-    res.json({ success: true, apk: info });
-  } catch(e) {
-    res.json({ success: false, apk: {} });
-  }
-});
-
-// ============================
-// PUBLIC APK INFO
-// ============================
-app.get("/api/apk/info", async (req, res) => {
-  try {
-    const keys = ["apk_version","apk_url","apk_size","apk_changelog","apk_name"];
-    const settings = await Settings.find({ key: { $in: keys } });
-    const info = {};
-    settings.forEach(s => info[s.key] = s.value);
-    res.json({ success: true, apk: info });
-  } catch(e) {
-    res.json({ success: false, apk: {} });
-  }
-});
-
-// ============================
-// PUBLIC NOTIFICATIONS
-// ============================
-app.get("/api/notifications", async (req, res) => {
-  try {
-    const notifs = await Notification.find().sort({ sentAt: -1 }).limit(20);
-    res.json({ success: true, notifications: notifs });
-  } catch(e) {
-    res.json({ success: false, notifications: [] });
-  }
-});
-
-// ============================
 // PUBLIC PDFs
 // ============================
 app.get("/api/pdfs", async (req, res) => {
   const { category, search, page = 1, limit = 20 } = req.query;
-  const query = {};
+  const query = { access: { $ne: "restricted" } };
   if (category) query.category = category;
   if (search)   query.title = { $regex: search, $options: "i" };
   const total = await PDF.countDocuments(query);
@@ -683,12 +616,6 @@ app.post("/api/mbx9k/auth",  handleAdminAuth);
 // ============================
 // ADMIN ROUTES
 // ============================
-const apkUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 200 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => { cb(null, true); }
-});
-
 function registerAdminRoutes(prefix) {
 
   app.get(`${prefix}/stats`, adminAuth, async (req, res) => {
@@ -927,50 +854,6 @@ function registerAdminRoutes(prefix) {
     res.json({ success:true, message:`Daily AI points set to ${points}` });
   });
 
-  // APK Management
-  // APK Upload Route
-  app.post(`${prefix}/apk/upload`, adminAuth, apkUpload.single("apk"), async (req, res) => {
-    try {
-      if(!req.file) return res.json({ success: false, message: "No APK file uploaded" });
-      const { version, changelog, appname } = req.body;
-      if(!version) return res.json({ success: false, message: "Version required" });
-
-      // Delete old APK from GridFS
-      const oldSetting = await Settings.findOne({ key: "apk_file_id" });
-      if(oldSetting?.value) {
-        try { await gfsBucket.delete(new mongoose.Types.ObjectId(oldSetting.value)); } catch(e) {}
-      }
-
-      // Upload new APK to GridFS
-      const fileId = await uploadToGridFS(req.file.buffer, req.file.originalname, "application/vnd.android.package-archive");
-      const sizeMB = (req.file.size / 1024 / 1024).toFixed(1) + " MB";
-
-      const updates = {
-        apk_file_id: fileId.toString(),
-        apk_version: version,
-        apk_size: sizeMB,
-        apk_name: appname || "MASTER BIOMEDS",
-        apk_changelog: changelog || ""
-      };
-      for(const [key, value] of Object.entries(updates)) {
-        await Settings.findOneAndUpdate({ key }, { key, value: String(value), updatedAt: new Date() }, { upsert: true });
-      }
-      await logActivity("apk_update", `APK uploaded: v${version} (${sizeMB})`, "admin001");
-      res.json({ success: true, message: `APK v${version} uploaded! (${sizeMB})` });
-    } catch(e) {
-      console.error("APK upload error:", e.message);
-      res.json({ success: false, message: e.message });
-    }
-  });
-
-  app.get(`${prefix}/apk`, adminAuth, async (req, res) => {
-    const keys = ["apk_version","apk_size","apk_changelog","apk_name","apk_file_id"];
-    const settings = await Settings.find({ key: { $in: keys } });
-    const info = {};
-    settings.forEach(s => info[s.key] = s.value);
-    res.json({ success: true, apk: info });
-  });
-
   app.get(`${prefix}/payments`, adminAuth, async (req, res) => {
     const payments = await Payment.find().sort({ createdAt:-1 }).limit(100);
     const total = await Payment.aggregate([{ $match:{ status:"completed" } }, { $group:{ _id:null, total:{ $sum:"$amount" } } }]);
@@ -990,44 +873,6 @@ app.get("/api/thumbnail/:fileId", async (req, res) => {
     res.set("Content-Type", files[0].contentType || "image/jpeg");
     gfsBucket.openDownloadStream(fileId).pipe(res);
   } catch(e) { res.status(404).send("Not found"); }
-});
-
-// ============================
-// APK UPLOAD & DOWNLOAD
-// ============================
-
-
-// Public APK info
-app.get("/api/apk/info", async (req, res) => {
-  try {
-    const keys = ["apk_version","apk_size","apk_changelog","apk_name","apk_file_id"];
-    const settings = await Settings.find({ key: { $in: keys } });
-    const info = {};
-    settings.forEach(s => info[s.key] = s.value);
-    res.json({ success: true, apk: info });
-  } catch(e) {
-    res.json({ success: false, apk: {} });
-  }
-});
-
-// Public APK download
-app.get("/api/apk/download", async (req, res) => {
-  try {
-    const setting = await Settings.findOne({ key: "apk_file_id" });
-    if(!setting) return res.status(404).json({ success: false, message: "No APK available" });
-    const fileId = new mongoose.Types.ObjectId(setting.value);
-    const files  = await gfsBucket.find({ _id: fileId }).toArray();
-    if(!files.length) return res.status(404).json({ success: false, message: "APK file not found" });
-    const nameSetting = await Settings.findOne({ key: "apk_name" });
-    const verSetting  = await Settings.findOne({ key: "apk_version" });
-    const fileName    = (nameSetting?.value || "MASTER-BIOMEDS") + "-v" + (verSetting?.value || "1.0") + ".apk";
-    res.set("Content-Type", "application/vnd.android.package-archive");
-    res.set("Content-Disposition", `attachment; filename="${fileName}"`);
-    res.set("Content-Length", files[0].length);
-    gfsBucket.openDownloadStream(fileId).pipe(res);
-  } catch(e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
 });
 
 // ============================
