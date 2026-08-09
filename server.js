@@ -430,13 +430,16 @@ app.get("/api/pdfs/:id/download", async (req, res) => {
       }
     }
 
-    // Fallback to disk (old files)
+    // Fallback to disk (legacy pre-GridFS files — Render's disk is wiped on
+    // every restart/redeploy, so these are unrecoverable; surface it clearly
+    // instead of silently 404ing so admin knows to re-upload)
     if (pdf.filename) {
       const fp = path.join(process.cwd(), "uploads/pdfs", pdf.filename);
       if (fs.existsSync(fp)) {
         const ext = path.extname(pdf.originalName || ("." + (pdf.fileType || "pdf")));
         return res.download(fp, pdf.title + ext);
       }
+      return res.json({ success: false, message: "This file predates cloud storage and was lost on a server restart. Please re-upload it in the admin panel." });
     }
 
     res.json({ success: false, message: "File not found on server. Please re-upload." });
