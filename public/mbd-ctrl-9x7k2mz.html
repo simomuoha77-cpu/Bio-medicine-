@@ -607,7 +607,7 @@ tr:hover td{background:rgba(255,255,255,0.012);}
 
 <script>
 // ══ ALL API CALLS NOW USE /api/mbx9k/ INSTEAD OF /api/xadmin/ ══
-let adminToken=null,allPdfs=[],allUsers=[],allLogs=[],allCats=[],catMap={},selNtype="announcement";
+let adminToken=localStorage.getItem("mbx9k_token")||null,allPdfs=[],allUsers=[],allLogs=[],allCats=[],catMap={},selNtype="announcement";
 
 async function doLogin(){
   const email=document.getElementById("l-email").value.trim();
@@ -621,17 +621,38 @@ async function doLogin(){
     const d=await r.json();
     if(!d.success){err.textContent=d.message;return;}
     adminToken=d.token;
-    document.getElementById("av-name").textContent=d.admin.username;
-    document.getElementById("av-letter").textContent=d.admin.username[0].toUpperCase();
-    document.getElementById("login-screen").style.display="none";
-    document.getElementById("admin-panel").classList.add("visible");
-    initPanel();
+    localStorage.setItem("mbx9k_token",d.token);
+    localStorage.setItem("mbx9k_admin_name",d.admin.username);
+    enterPanel(d.admin.username);
   }catch{err.textContent="Connection error";}
 }
 
-function doLogout(){adminToken=null;document.getElementById("admin-panel").classList.remove("visible");document.getElementById("login-screen").style.display="flex";}
+function enterPanel(username){
+  document.getElementById("av-name").textContent=username;
+  document.getElementById("av-letter").textContent=username[0].toUpperCase();
+  document.getElementById("login-screen").style.display="none";
+  document.getElementById("admin-panel").classList.add("visible");
+  initPanel();
+}
+
+function doLogout(){adminToken=null;localStorage.removeItem("mbx9k_token");localStorage.removeItem("mbx9k_admin_name");document.getElementById("admin-panel").classList.remove("visible");document.getElementById("login-screen").style.display="flex";}
 
 async function aFetch(url,opts={}){return fetch(url,{...opts,headers:{"x-admin-token":adminToken,...(opts.headers||{})}});}
+
+// Restore session on page load/refresh instead of re-prompting for credentials
+async function tryAutoLogin(){
+  if(!adminToken)return;
+  try{
+    const r=await aFetch("/api/mbx9k/stats");
+    const d=await r.json();
+    if(d.success){
+      enterPanel(localStorage.getItem("mbx9k_admin_name")||"Admin");
+    }else{
+      adminToken=null;localStorage.removeItem("mbx9k_token");localStorage.removeItem("mbx9k_admin_name");
+    }
+  }catch{ /* connection error — leave login screen, keep stored token for next try */ }
+}
+tryAutoLogin();
 
 document.addEventListener("keydown",e=>{if(e.key==="Enter"&&document.getElementById("login-screen").style.display!=="none")doLogin();});
 
