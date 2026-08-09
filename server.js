@@ -246,20 +246,39 @@ async function logActivity(type, message, userId = null, details = {}) {
 // ============================
 // EMAIL
 // ============================
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com", port: 587, secure: false,
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-  tls: { rejectUnauthorized: false },
-  connectionTimeout: 20000, greetingTimeout: 20000, socketTimeout: 20000
-});
-
-// Wraps transporter.sendMail with retries — Render's free tier occasionally
-// times out the first outbound SMTP connection after a cold start, so one
-// network blip shouldn't strand a user without their verification/reset code.
-async function sendMailWithRetry(options, retries = 2) {
+// ============================
+// EMAIL — via Brevo HTTP API (not raw SMTP)
+// ============================
+// Render's free tier permanently blocks outbound traffic on SMTP ports
+// 25/465/587 (since Sep 2025) — no retry count fixes that, it's a network-
+// level block. Brevo's REST API runs over plain HTTPS (port 443), which
+// Render does NOT block, so we send email as an HTTP request instead.
+// Needs env vars: BREVO_API_KEY (from Brevo dashboard → SMTP & API → API Keys)
+// and BREVO_SENDER_EMAIL (a single sender you've verified in Brevo — your
+// existing Gmail works fine, no domain purchase needed).
+async function sendMailWithRetry({ to, subject, html }, retries = 2) {
+  const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER;
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      return await transporter.sendMail(options);
+      const r = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": process.env.BREVO_API_KEY,
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({
+          sender: { name: "MASTER BIOMEDS", email: senderEmail },
+          to: [{ email: to }],
+          subject,
+          htmlContent: html
+        })
+      });
+      if (!r.ok) {
+        const errText = await r.text();
+        throw new Error(`Brevo API ${r.status}: ${errText}`);
+      }
+      return await r.json();
     } catch (err) {
       console.error(`Email send attempt ${attempt}/${retries} failed:`, err.message);
       if (attempt === retries) throw err;
@@ -320,8 +339,37 @@ app.post("/register", async (req, res) => {
     const { username, email, password } = req.body;
     if (!username || !email || !password)
       return res.json({ success: false, message: "All fields required" });
-    if (await User.findOne({ email }))
-      return res.json({ success: false, message: "Account already exists" });
+
+    const existing = await User.findOne({ email });
+    if (existing) {
+      if (existing.emailVerified) {
+        return res.json({ success: false, message: "Account already exists" });
+      }
+      // Orphaned account from a previous registration whose verification
+      // email never arrived (e.g. sending was down) — don't dead-end them,
+      // just issue a fresh code for the account that's already there.
+      const otp = String(Math.floor(100000 + Math.random() * 900000));
+      existing.verifyOtp = otp;
+      existing.verifyOtpExpiry = new Date(Date.now() + 15 * 60 * 1000);
+      await existing.save();
+      try {
+        await sendMailWithRetry({
+          to: email,
+          subject: "MASTER BIOMEDS — Verify Your Email",
+          html: `<div style="background:#071018;padding:30px;color:white;font-family:Arial;border-radius:12px;">
+            <h2 style="color:#00d9ff;">Welcome to MASTER BIOMEDS</h2>
+            <p style="color:#9fb4c2;line-height:1.6;">Use this code to verify your email and activate your account. It expires in 15 minutes.</p>
+            <div style="background:#0b1622;border-radius:8px;padding:20px;margin:16px 0;text-align:center;">
+              <span style="font-size:32px;letter-spacing:8px;font-weight:700;color:#00d9ff;">${otp}</span>
+            </div>
+          </div>`
+        });
+      } catch(emailErr) {
+        console.error("Verification email error:", emailErr.message);
+      }
+      return res.json({ success: true, message: "This email already started signing up. We've sent a new verification code.", email });
+    }
+
     const hashed = await bcrypt.hash(password, 10);
     const otp = String(Math.floor(100000 + Math.random() * 900000));
     const user = await User.create({
@@ -333,7 +381,6 @@ app.post("/register", async (req, res) => {
 
     try {
       await sendMailWithRetry({
-        from: process.env.EMAIL_USER,
         to: email,
         subject: "MASTER BIOMEDS — Verify Your Email",
         html: `<div style="background:#071018;padding:30px;color:white;font-family:Arial;border-radius:12px;">
