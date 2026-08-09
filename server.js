@@ -250,8 +250,23 @@ const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com", port: 587, secure: false,
   auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
   tls: { rejectUnauthorized: false },
-  connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000
+  connectionTimeout: 20000, greetingTimeout: 20000, socketTimeout: 20000
 });
+
+// Wraps transporter.sendMail with retries — Render's free tier occasionally
+// times out the first outbound SMTP connection after a cold start, so one
+// network blip shouldn't strand a user without their verification/reset code.
+async function sendMailWithRetry(options, retries = 2) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await transporter.sendMail(options);
+    } catch (err) {
+      console.error(`Email send attempt ${attempt}/${retries} failed:`, err.message);
+      if (attempt === retries) throw err;
+      await new Promise(r => setTimeout(r, 1500 * attempt));
+    }
+  }
+}
 
 // ============================
 // MIDDLEWARES
@@ -317,7 +332,7 @@ app.post("/register", async (req, res) => {
     });
 
     try {
-      await transporter.sendMail({
+      await sendMailWithRetry({
         from: process.env.EMAIL_USER,
         to: email,
         subject: "MASTER BIOMEDS — Verify Your Email",
@@ -383,7 +398,7 @@ app.post("/api/resend-verification", async (req, res) => {
     await user.save();
 
     try {
-      await transporter.sendMail({
+      await sendMailWithRetry({
         from: process.env.EMAIL_USER,
         to: email,
         subject: "MASTER BIOMEDS — Verify Your Email",
@@ -444,7 +459,7 @@ app.post("/api/forgot-password", async (req, res) => {
     await user.save();
 
     try {
-      await transporter.sendMail({
+      await sendMailWithRetry({
         from: process.env.EMAIL_USER,
         to: user.email,
         subject: "MASTER BIOMEDS — Password Reset Code",
@@ -502,7 +517,7 @@ app.post("/api/support", async (req, res) => {
   if (!name || !email || !message)
     return res.json({ success: false, message: "All fields required" });
   try {
-    await transporter.sendMail({
+    await sendMailWithRetry({
       from: process.env.EMAIL_USER,
       to: "studentshelplibrary@gmail.com",
       subject: `[SUPPORT] ${type?.toUpperCase()} — ${subject || "No subject"}`,
