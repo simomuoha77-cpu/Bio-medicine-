@@ -473,6 +473,7 @@ function pdfCard(p){
   const hasPrice = (p.price&&p.price>0)||p.access==='premium'||p.access==='restricted';
   const isPurchased = myPurchasedIds.has(p._id);
   const isPublic = !hasPrice;
+  const isPastPaper = catName(p.category).toLowerCase()==='past papers';
 
   let actionBtn='';
   if(isPublic){
@@ -486,6 +487,8 @@ function pdfCard(p){
       : `<button class="pdf-buy-btn" style="background:rgba(255,159,67,0.15);color:var(--orange);cursor:default;"><i class="fa-solid fa-lock"></i> Premium</button>`;
     actionBtn=`<button class="pdf-dl-btn" style="opacity:.4;cursor:not-allowed;" disabled><i class="fa-solid fa-lock"></i> Locked</button>${buyBtn}`;
   }
+
+  const askBtn = isPastPaper ? `<button class="pdf-dl-btn" style="background:rgba(0,180,216,0.15);color:var(--acc,#00b4d8);margin-top:6px;" onclick="askAiAbout('${p.title.replace(/'/g,"\\'")}','${catName(p.category).replace(/'/g,"\\'")}')"><i class="fa-solid fa-robot"></i> Ask AI about this paper</button>` : '';
 
   return `<div class="pdf-card">
     <div class="pdf-thumb">
@@ -501,6 +504,7 @@ function pdfCard(p){
         <span><i class="fa-solid fa-download" style="margin-right:3px;"></i>${p.downloads}</span>
       </div>
       ${actionBtn}
+      ${askBtn}
     </div>
   </div>`;
 }
@@ -690,6 +694,12 @@ async function callGemini(q){
   return null;
 }
 
+function askAiAbout(title,category){
+  goTo('ai',document.getElementById('ai-nav-btn'));
+  const input=document.getElementById('ai-input');
+  input.value=`Help me study for the past paper "${title}" (${category}). Explain the key topics it's likely to cover and quiz me with sample questions.`;
+  input.focus();
+}
 function fillQ(btn){document.getElementById('ai-input').value=btn.textContent.trim();askAI();}
 function aiKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();askAI();}}
 function autoH(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px';}
