@@ -248,6 +248,7 @@ body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-he
     <div class="nav-sec">Main</div>
     <button class="nb active" onclick="goTo('home',this)"><i class="fa-solid fa-house"></i> Dashboard</button>
     <button class="nb" onclick="goTo('library',this)"><i class="fa-solid fa-book-medical"></i> PDF Library</button>
+    <button class="nb" onclick="goToPastPapers(this)"><i class="fa-solid fa-file-lines"></i> Past Papers</button>
     <button class="nb" onclick="goTo('downloads',this)"><i class="fa-solid fa-download"></i> My Downloads</button>
     <button class="nb" onclick="goTo('purchases',this)"><i class="fa-solid fa-receipt"></i> My Purchases</button>
     <button class="nb" onclick="goTo('notifications',this)"><i class="fa-solid fa-bell"></i> Notifications</button>
@@ -555,6 +556,13 @@ function filterCat(id,btn){
   document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   renderLibrary(id?allPdfs.filter(p=>p.category===id):allPdfs);
+}
+
+function goToPastPapers(navBtn){
+  goTo('library',navBtn);
+  const cat=allCats.find(c=>c.name.toLowerCase()==='past papers');
+  const catBtn=[...document.querySelectorAll('#cat-bar .cat-btn')].find(b=>b.textContent.trim().toLowerCase()==='past papers');
+  filterCat(cat?cat._id:'',catBtn||null);
 }
 
 function onSearch(){
