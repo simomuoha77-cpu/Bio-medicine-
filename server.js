@@ -217,9 +217,17 @@ async function seedCategories() {
       { name: "Biomedical Engineering", department: "Biomedical" },
       { name: "Radiography",            department: "Radiography" },
       { name: "EMT",                    department: "EMT" },
-      { name: "Clinical",               department: "Clinical" }
+      { name: "Clinical",               department: "Clinical" },
+      { name: "Past Papers",            department: "Exams" }
     ]);
     console.log("✅ Default categories seeded");
+  } else {
+    // Migration: add Past Papers to already-seeded (live) databases without touching existing categories
+    await Category.findOneAndUpdate(
+      { name: "Past Papers" },
+      { $setOnInsert: { name: "Past Papers", department: "Exams" } },
+      { upsert: true }
+    );
   }
 }
 
