@@ -261,6 +261,7 @@ body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-he
     <button class="nb" onclick="goTo('library',this)" id="nb-library"><i class="fa-solid fa-book-medical"></i> PDF Library</button>
     <button class="nb" onclick="goToPastPapers(this)"><i class="fa-solid fa-file-lines"></i> Past Papers</button>
     <button class="nb" onclick="goTo('downloads',this)"><i class="fa-solid fa-download"></i> My Downloads</button>
+    <button class="nb" onclick="goTo('schedule',this)"><i class="fa-solid fa-calendar-days"></i> My Schedule</button>
     <button class="nb" onclick="goTo('purchases',this)"><i class="fa-solid fa-receipt"></i> My Purchases</button>
     <button class="nb" onclick="goTo('notifications',this)"><i class="fa-solid fa-bell"></i> Notifications</button>
     <button class="nb" onclick="goTo('apk',this)"><i class="fa-solid fa-mobile-screen-button"></i> Download App</button>
@@ -368,6 +369,33 @@ body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-he
     <div id="dl-wrap"><div class="empty"><i class="fa-solid fa-inbox"></i><p>No downloads yet</p></div></div>
   </div>
 
+  <!-- SCHEDULE -->
+  <div class="section" id="sec-schedule">
+    <div class="sec-hdr"><h2>My Schedule</h2></div>
+
+    <div class="panel" style="background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:18px;">
+      <h3 style="font-size:14px;margin-bottom:14px;display:flex;align-items:center;gap:8px;"><i class="fa-solid fa-chart-column" style="color:var(--accent);"></i> Study Activity (last 14 days)</h3>
+      <canvas id="study-chart" height="140" style="width:100%;max-width:100%;"></canvas>
+      <p id="study-chart-empty" style="display:none;text-align:center;color:var(--muted);font-size:12px;margin-top:10px;">Complete a study session below to start seeing your progress here.</p>
+    </div>
+
+    <div class="panel" style="background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:18px;">
+      <h3 style="font-size:14px;margin-bottom:14px;">Add a Study Session</h3>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <input type="text" id="sch-title" placeholder="What are you studying? e.g. Anatomy — Chapter 3" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:10px 12px;font-family:'Sora',sans-serif;font-size:13px;">
+        <div style="display:flex;gap:10px;">
+          <select id="sch-day" style="flex:1;background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:10px 12px;font-family:'Sora',sans-serif;font-size:13px;">
+            <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
+          </select>
+          <input type="time" id="sch-time" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:10px 12px;font-family:'Sora',sans-serif;font-size:13px;">
+        </div>
+        <button class="btn btn-primary" onclick="addScheduleItem()" style="width:100%;"><i class="fa-solid fa-plus"></i> Add to Schedule</button>
+      </div>
+    </div>
+
+    <div id="schedule-wrap"><div class="empty"><i class="fa-solid fa-calendar-days"></i><p>No study sessions yet — add one above</p></div></div>
+  </div>
+
   <!-- PURCHASES -->
   <div class="section" id="sec-purchases">
     <div class="sec-hdr"><h2>My Purchases</h2></div>
@@ -449,6 +477,7 @@ function goTo(name, btn){
   if(window.innerWidth<900) closeSB();
   if(name==='ai') loadAiPoints();
   if(name==='downloads') renderDownloads();
+  if(name==='schedule') loadSchedule();
   if(name==='purchases') loadPurchases();
   if(name==='notifications') loadNotifications();
   if(name==='apk') loadApkInfo();
@@ -625,6 +654,111 @@ function renderDownloads(){
       <div class="dl-info"><h4>${d.title}</h4><span>${new Date(d.at).toLocaleString()}</span></div>
       <button class="re-dl" onclick="window.open('/api/pdfs/${d.id}/download','_blank')"><i class="fa-solid fa-download"></i></button>
     </div>`).join('');
+}
+
+// ══ STUDY SCHEDULE ══
+let scheduleItems=[];
+
+async function loadSchedule(){
+  try{
+    const r=await fetch('/api/schedule',{headers:{'x-user-token':TOKEN}});
+    const d=await r.json();
+    if(d.success){ scheduleItems=d.items; renderSchedule(); }
+  }catch(e){}
+  loadStudyChart();
+}
+
+function renderSchedule(){
+  const el=document.getElementById('schedule-wrap');
+  if(!scheduleItems.length){el.innerHTML=`<div class="empty"><i class="fa-solid fa-calendar-days"></i><p>No study sessions yet — add one above</p></div>`;return;}
+  const order=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  const sorted=[...scheduleItems].sort((a,b)=>order.indexOf(a.day)-order.indexOf(b.day));
+  el.innerHTML=sorted.map(it=>`
+    <div class="dl-item" style="opacity:${it.completed?0.6:1};">
+      <input type="checkbox" ${it.completed?'checked':''} onchange="toggleScheduleItem('${it._id}')" style="width:18px;height:18px;margin-right:4px;accent-color:var(--accent);cursor:pointer;">
+      <div class="dl-info">
+        <h4 style="${it.completed?'text-decoration:line-through;':''}">${it.title}</h4>
+        <span>${it.day}${it.time?' · '+it.time:''}</span>
+      </div>
+      <button class="re-dl" onclick="deleteScheduleItem('${it._id}')" style="color:var(--red,#ff5c5c);"><i class="fa-solid fa-trash"></i></button>
+    </div>`).join('');
+}
+
+async function addScheduleItem(){
+  const title=document.getElementById('sch-title').value.trim();
+  const day=document.getElementById('sch-day').value;
+  const time=document.getElementById('sch-time').value;
+  if(!title){ return; }
+  try{
+    const r=await fetch('/api/schedule',{method:'POST',headers:{'Content-Type':'application/json','x-user-token':TOKEN},body:JSON.stringify({title,day,time})});
+    const d=await r.json();
+    if(d.success){
+      document.getElementById('sch-title').value='';
+      document.getElementById('sch-time').value='';
+      loadSchedule();
+    }
+  }catch(e){}
+}
+
+async function toggleScheduleItem(id){
+  try{
+    const r=await fetch(`/api/schedule/${id}/toggle`,{method:'PUT',headers:{'x-user-token':TOKEN}});
+    const d=await r.json();
+    if(d.success) loadSchedule();
+  }catch(e){}
+}
+
+async function deleteScheduleItem(id){
+  try{
+    const r=await fetch(`/api/schedule/${id}`,{method:'DELETE',headers:{'x-user-token':TOKEN}});
+    const d=await r.json();
+    if(d.success) loadSchedule();
+  }catch(e){}
+}
+
+async function loadStudyChart(){
+  try{
+    const r=await fetch('/api/schedule/stats',{headers:{'x-user-token':TOKEN}});
+    const d=await r.json();
+    if(d.success) drawStudyChart(d.days);
+  }catch(e){}
+}
+
+function drawStudyChart(days){
+  const canvas=document.getElementById('study-chart');
+  if(!canvas) return;
+  const emptyMsg=document.getElementById('study-chart-empty');
+  const total=days.reduce((s,d)=>s+d.count,0);
+  emptyMsg.style.display = total>0 ? 'none' : 'block';
+
+  const dpr=window.devicePixelRatio||1;
+  const cssWidth=canvas.parentElement.clientWidth;
+  const cssHeight=140;
+  canvas.width=cssWidth*dpr;
+  canvas.height=cssHeight*dpr;
+  canvas.style.height=cssHeight+'px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,cssWidth,cssHeight);
+
+  const max=Math.max(1,...days.map(d=>d.count));
+  const barW=cssWidth/days.length;
+  const chartH=cssHeight-24;
+
+  days.forEach((d,i)=>{
+    const barH = d.count>0 ? Math.max(4,(d.count/max)*chartH) : 2;
+    const x=i*barW+barW*0.22;
+    const w=barW*0.56;
+    const y=chartH-barH;
+    ctx.fillStyle = d.count>0 ? '#00d9ff' : 'rgba(255,255,255,0.08)';
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(x,y,w,barH,3) : ctx.rect(x,y,w,barH);
+    ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.4)';
+    ctx.font='9px Sora, sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText(d.label[0],x+w/2,cssHeight-6);
+  });
 }
 
 async function loadPurchases(){

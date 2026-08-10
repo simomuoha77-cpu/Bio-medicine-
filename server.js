@@ -144,6 +144,17 @@ const paymentSchema = new mongoose.Schema({
   completedAt:        { type: Date }
 });
 
+const scheduleSchema = new mongoose.Schema({
+  userId:      { type: String, required: true },
+  title:       { type: String, required: true },
+  day:         { type: String, required: true }, // "Monday".."Sunday"
+  time:        { type: String, default: "" },     // "18:00"
+  notes:       { type: String, default: "" },
+  completed:   { type: Boolean, default: false },
+  completedAt: { type: Date, default: null },
+  createdAt:   { type: Date, default: Date.now }
+});
+
 const User         = mongoose.model("User",         userSchema);
 const PDF          = mongoose.model("PDF",          pdfSchema);
 const Category     = mongoose.model("Category",     categorySchema);
@@ -152,6 +163,7 @@ const Notification = mongoose.model("Notification", notifSchema);
 const AiChat       = mongoose.model("AiChat",       aiChatSchema);
 const Settings     = mongoose.model("Settings",     settingsSchema);
 const Payment      = mongoose.model("Payment",      paymentSchema);
+const Schedule     = mongoose.model("Schedule",     scheduleSchema);
 
 // APK Settings stored in Settings collection
 // key: "apk_version", value: "1.0.0"
@@ -885,6 +897,63 @@ app.get("/api/mpesa/status/:checkoutId", userAuth, async (req, res) => {
 app.get("/api/mpesa/purchases", userAuth, async (req, res) => {
   const purchases = await Payment.find({ userId:req.user._id.toString(), status:"completed" }).sort({ completedAt:-1 }).limit(50);
   res.json({ success:true, purchases });
+});
+
+// ============================
+// STUDY SCHEDULE
+// ============================
+app.get("/api/schedule", userAuth, async (req, res) => {
+  try {
+    const items = await Schedule.find({ userId: req.user._id.toString() }).sort({ createdAt: 1 });
+    res.json({ success: true, items });
+  } catch(e) { res.json({ success: false, items: [] }); }
+});
+
+app.post("/api/schedule", userAuth, async (req, res) => {
+  try {
+    const { title, day, time, notes } = req.body;
+    if (!title || !day) return res.json({ success: false, message: "Title and day are required" });
+    const item = await Schedule.create({ userId: req.user._id.toString(), title, day, time: time||"", notes: notes||"" });
+    res.json({ success: true, item });
+  } catch(e) { res.json({ success: false, message: "Failed to create" }); }
+});
+
+app.put("/api/schedule/:id/toggle", userAuth, async (req, res) => {
+  try {
+    const item = await Schedule.findOne({ _id: req.params.id, userId: req.user._id.toString() });
+    if (!item) return res.json({ success: false, message: "Not found" });
+    item.completed = !item.completed;
+    item.completedAt = item.completed ? new Date() : null;
+    await item.save();
+    res.json({ success: true, item });
+  } catch(e) { res.json({ success: false, message: "Failed to update" }); }
+});
+
+app.delete("/api/schedule/:id", userAuth, async (req, res) => {
+  try {
+    await Schedule.deleteOne({ _id: req.params.id, userId: req.user._id.toString() });
+    res.json({ success: true });
+  } catch(e) { res.json({ success: false, message: "Failed to delete" }); }
+});
+
+// Study activity for the graph — completions per day over the last 14 days
+app.get("/api/schedule/stats", userAuth, async (req, res) => {
+  try {
+    const since = new Date(Date.now() - 14*24*60*60*1000);
+    const items = await Schedule.find({ userId: req.user._id.toString(), completed: true, completedAt: { $gte: since } });
+    const byDay = {};
+    items.forEach(it => {
+      const key = it.completedAt.toISOString().slice(0,10); // YYYY-MM-DD
+      byDay[key] = (byDay[key]||0) + 1;
+    });
+    const days = [];
+    for (let i=13; i>=0; i--) {
+      const d = new Date(Date.now() - i*24*60*60*1000);
+      const key = d.toISOString().slice(0,10);
+      days.push({ date: key, label: d.toLocaleDateString('en-US',{weekday:'short'}), count: byDay[key]||0 });
+    }
+    res.json({ success: true, days });
+  } catch(e) { res.json({ success: false, days: [] }); }
 });
 
 // ============================
