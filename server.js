@@ -1127,6 +1127,7 @@ function registerAdminRoutes(prefix) {
       const settings = await Settings.find();
       const obj = {};
       settings.forEach(s => { obj[s.key]=(s.key==="gemini_api_key"&&s.value.length>6)?"••••••••••••"+s.value.slice(-6):s.value; });
+      if (!("ads_enabled" in obj)) obj.ads_enabled = "true"; // default ON until admin toggles it
       res.json({ success:true, settings:obj });
     } catch(err) { res.json({ success:false, message:err.message }); }
   });
@@ -1151,6 +1152,11 @@ function registerAdminRoutes(prefix) {
     if (!points || points < 1 || points > 100) return res.json({ success:false, message:"Points must be 1-100" });
     await Settings.findOneAndUpdate({ key:"daily_ai_points" }, { key:"daily_ai_points", value:String(points), updatedAt:new Date() }, { upsert:true });
     res.json({ success:true, message:`Daily AI points set to ${points}` });
+  });
+  app.post(`${prefix}/settings/ads-toggle`, adminAuth, async (req, res) => {
+    const { enabled } = req.body;
+    await Settings.findOneAndUpdate({ key:"ads_enabled" }, { key:"ads_enabled", value: enabled ? "true" : "false", updatedAt:new Date() }, { upsert:true });
+    res.json({ success:true, message: enabled ? "Ads turned ON" : "Ads turned OFF" });
   });
 
   // APK Management
@@ -1224,6 +1230,20 @@ app.get("/api/thumbnail/:fileId", async (req, res) => {
 
 
 // Public APK info
+// Public — ads on/off toggle, checked by index.html/login.html/dashboard.html
+// before loading the Adsterra script
+app.get("/api/ads-status", async (req, res) => {
+  try {
+    const setting = await Settings.findOne({ key: "ads_enabled" });
+    // Default ON if never set, so this doesn't silently disable ads on a
+    // fresh DB before the admin has visited the toggle even once.
+    const enabled = setting ? setting.value === "true" : true;
+    res.json({ success: true, enabled });
+  } catch(e) {
+    res.json({ success: true, enabled: true });
+  }
+});
+
 app.get("/api/apk/info", async (req, res) => {
   try {
     const keys = ["apk_version","apk_size","apk_changelog","apk_name","apk_file_id"];

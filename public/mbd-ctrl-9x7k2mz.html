@@ -551,6 +551,20 @@ tr:hover td{background:rgba(255,255,255,0.012);}
           </div>
         </div>
         <div class="panel">
+          <div class="ph"><span class="ph-ttl"><i class="fa-solid fa-rectangle-ad" style="color:var(--orange);margin-right:7px;"></i>Ads</span></div>
+          <div class="pb">
+            <div style="background:rgba(255,159,67,0.05);border:1px solid rgba(255,159,67,0.1);border-radius:10px;padding:14px;margin-bottom:18px;font-size:12px;color:var(--muted);">Turns the Adsterra popunder ad on or off across the whole site (login, register, dashboard). Takes effect for users on their next page load — no redeploy needed.</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;background:var(--s2);border-radius:10px;padding:14px 16px;">
+              <span style="font-size:13px;font-weight:600;" id="ads-status-label">Loading...</span>
+              <label style="position:relative;display:inline-block;width:46px;height:26px;">
+                <input type="checkbox" id="ads-toggle-input" onchange="toggleAds()" style="opacity:0;width:0;height:0;">
+                <span id="ads-toggle-track" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:var(--s3,#333);border-radius:26px;transition:.2s;"></span>
+                <span id="ads-toggle-knob" style="position:absolute;height:20px;width:20px;left:3px;top:3px;background:white;border-radius:50%;transition:.2s;"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
           <div class="ph"><span class="ph-ttl"><i class="fa-solid fa-circle-info" style="color:var(--muted);margin-right:7px;"></i>System Info</span></div>
           <div class="pb">
             <div style="display:flex;flex-direction:column;gap:10px;">
@@ -937,7 +951,21 @@ async function loadSettings(){
     const s=d.settings;const el=document.getElementById("key-status");
     if(el){el.textContent=s.gemini_api_key?"Key saved: "+s.gemini_api_key:"No key set yet";el.style.color=s.gemini_api_key?"var(--green)":"var(--red)";}
     if(s.daily_ai_points&&document.getElementById("ai-points-input"))document.getElementById("ai-points-input").value=s.daily_ai_points;
+    setAdsToggleUI(s.ads_enabled!=="false");
   }catch(e){console.error(e);}
+}
+function setAdsToggleUI(enabled){
+  document.getElementById("ads-toggle-input").checked=enabled;
+  document.getElementById("ads-toggle-track").style.background=enabled?"var(--green)":"var(--s3,#333)";
+  document.getElementById("ads-toggle-knob").style.transform=enabled?"translateX(20px)":"translateX(0)";
+  document.getElementById("ads-status-label").textContent=enabled?"Ads: ON":"Ads: OFF";
+}
+async function toggleAds(){
+  const enabled=document.getElementById("ads-toggle-input").checked;
+  setAdsToggleUI(enabled); // optimistic UI
+  const r=await aFetch("/api/mbx9k/settings/ads-toggle",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled})});
+  const d=await r.json();
+  if(d.success){toast(d.message,"ok");}else{toast(d.message||"Failed to update","er");setAdsToggleUI(!enabled);}
 }
 async function saveGeminiKey(){
   const key=document.getElementById("gemini-key-input").value.trim();

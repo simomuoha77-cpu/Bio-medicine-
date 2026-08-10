@@ -171,6 +171,14 @@ function showMsg(text, type) {
   el.style.display  = "block";
 }
 </script>
-<script src="https://pl30773159.effectivecpmnetwork.com/26/09/6b/26096b6e493be7a4e5816b0e9d130df8.js"></script>
+<script>
+fetch("/api/ads-status").then(r=>r.json()).then(d=>{
+  if(d.enabled!==false){
+    const s=document.createElement("script");
+    s.src="https://pl30773159.effectivecpmnetwork.com/26/09/6b/26096b6e493be7a4e5816b0e9d130df8.js";
+    document.body.appendChild(s);
+  }
+}).catch(()=>{});
+</script>
 </body>
 </html>
