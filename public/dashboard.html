@@ -384,10 +384,16 @@ body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-he
       <div style="display:flex;flex-direction:column;gap:10px;">
         <input type="text" id="sch-title" placeholder="What are you studying? e.g. Anatomy — Chapter 3" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:10px 12px;font-family:'Sora',sans-serif;font-size:13px;">
         <div style="display:flex;gap:10px;">
-          <select id="sch-day" style="flex:1;background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:10px 12px;font-family:'Sora',sans-serif;font-size:13px;">
-            <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
-          </select>
-          <input type="time" id="sch-time" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:10px 12px;font-family:'Sora',sans-serif;font-size:13px;">
+          <div style="flex:1;">
+            <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:5px;">Day</label>
+            <select id="sch-day" style="width:100%;background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:10px 12px;font-family:'Sora',sans-serif;font-size:13px;">
+              <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
+            </select>
+          </div>
+          <div style="flex:1;">
+            <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:5px;">Time</label>
+            <input type="time" id="sch-time" style="width:100%;background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:10px 12px;font-family:'Sora',sans-serif;font-size:13px;">
+          </div>
         </div>
         <button class="btn btn-primary" onclick="addScheduleItem()" style="width:100%;"><i class="fa-solid fa-plus"></i> Add to Schedule</button>
       </div>
