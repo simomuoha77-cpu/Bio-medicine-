@@ -1101,13 +1101,13 @@ function registerAdminRoutes(prefix) {
     async (req, res) => {
       try {
         if (!req.file) return res.json({ success:false, message:"No file" });
-        const { category="", access="public" } = req.body;
+        const { category="", access="public", description="", subject="", semester="", department="" } = req.body;
         const file = req.file;
         const title = file.originalname.replace(/\.[^/.]+$/, "").replace(/_/g," ");
         const detectedType = ALLOWED_TYPES[file.mimetype] || "pdf";
         const fileId = await uploadToGridFS(file.buffer, file.originalname, file.mimetype);
         const pdf = await PDF.create({
-          title, category, access, fileId,
+          title, category, access, description, subject, semester, department, fileId,
           filename: file.originalname, originalName: file.originalname,
           fileSize: file.size, fileType: detectedType, uploadedBy:"admin001"
         });

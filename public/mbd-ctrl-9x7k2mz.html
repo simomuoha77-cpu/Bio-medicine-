@@ -359,8 +359,16 @@ tr:hover td{background:rgba(255,255,255,0.012);}
               <div class="prog-bar"><div class="prog-fill" id="bulk-fill" style="width:0%"></div></div>
             </div>
             <div class="frow" style="margin-top:14px;">
-              <div class="fg"><label>Default Category</label><select id="bulk-cat"></select></div>
+              <div class="fg"><label>Default Category</label><select id="bulk-cat" onchange="toggleBulkDept()"></select></div>
               <div class="fg"><label>Access Level</label><select id="bulk-acc"><option value="public">Public</option><option value="premium">Premium</option><option value="restricted">Restricted</option></select></div>
+            </div>
+            <div class="frow one" id="bulk-dept-row" style="display:none;">
+              <div class="fg"><label><i class="fa-solid fa-building-columns" style="color:var(--accent);margin-right:4px;"></i>Course</label><input type="text" id="bulk-dept" placeholder="e.g. Electrical, Nursing" list="dept-suggestions"></div>
+            </div>
+            <div class="frow one"><div class="fg"><label>Description <small style="color:var(--muted);">(applied to all files in this batch)</small></label><textarea id="bulk-desc" rows="2" placeholder="Brief description..."></textarea></div></div>
+            <div class="frow">
+              <div class="fg"><label>Subject</label><input type="text" id="bulk-subj" placeholder="Anatomy"></div>
+              <div class="fg"><label>Semester</label><input type="text" id="bulk-sem" placeholder="Year 2"></div>
             </div>
             <button class="btn btn-primary" onclick="uploadBulk()" style="width:100%;padding:12px;"><i class="fa-solid fa-layer-group"></i> Bulk Upload</button>
             <div id="bulk-results" style="margin-top:14px;"></div>
@@ -733,6 +741,7 @@ async function loadCats(){
       el.innerHTML=(isFilter?'<option value="">All Categories</option>':'')+allCats.map(c=>`<option value="${c._id}">${c.name}</option>`).join("");
     });
     toggleUpDept();
+    toggleBulkDept();
   }catch{}
 }
 
@@ -821,6 +830,12 @@ function toggleUpDept(){
   document.getElementById("up-dept-row").style.display=isPastPaper?"":"none";
 }
 
+function toggleBulkDept(){
+  const catId=document.getElementById("bulk-cat").value;
+  const isPastPaper=(catMap[catId]||"").toLowerCase()==="past papers";
+  document.getElementById("bulk-dept-row").style.display=isPastPaper?"":"none";
+}
+
 async function uploadSingle(){
   const file=document.getElementById("up-pdf-file").files[0];
   const title=document.getElementById("up-title").value.trim();
@@ -869,6 +884,12 @@ async function uploadBulk(){
 
   const category=document.getElementById("bulk-cat").value;
   const access=document.getElementById("bulk-acc").value;
+  const description=document.getElementById("bulk-desc").value;
+  const subject=document.getElementById("bulk-subj").value;
+  const semester=document.getElementById("bulk-sem").value;
+  const isPastPaper=(catMap[category]||"").toLowerCase()==="past papers";
+  const department=isPastPaper?document.getElementById("bulk-dept").value.trim():"";
+  if(isPastPaper&&!department){toast("Course required for Past Papers","er");return;}
 
   document.getElementById("bulk-prog").style.display="block";
   const fillEl=document.getElementById("bulk-fill"),pctEl=document.getElementById("bulk-pct");
@@ -881,6 +902,7 @@ async function uploadBulk(){
     resultsEl.innerHTML=`<div style="font-size:12px;color:var(--muted);">Uploading ${i+1} of ${files.length}: ${files[i].name}...</div>`;
     const fd=new FormData();
     fd.append("pdf",files[i]);fd.append("category",category);fd.append("access",access);
+    fd.append("description",description);fd.append("subject",subject);fd.append("semester",semester);fd.append("department",department);
     try{
       const r=await aFetch("/api/mbx9k/pdfs/bulk-item",{method:"POST",body:fd});
       const d=await r.json();
@@ -900,6 +922,7 @@ async function uploadBulk(){
   document.getElementById("bulk-files").value="";
   document.getElementById("bulk-selected-info").style.display="none";
   document.getElementById("bulk-zone-lbl").textContent="Select multiple files";
+  document.getElementById("bulk-desc").value="";document.getElementById("bulk-subj").value="";document.getElementById("bulk-sem").value="";document.getElementById("bulk-dept").value="";
   setTimeout(()=>{document.getElementById("bulk-prog").style.display="none";fillEl.style.width="0%";},2500);
 }
 
