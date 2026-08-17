@@ -1091,6 +1091,31 @@ function registerAdminRoutes(prefix) {
     res.json({ success:true, message:"File deleted" });
   });
 
+  // Bulk upload — one file per request (see uploadBulk() in admin panel).
+  // Doing this instead of accepting all files in a single multipart request
+  // keeps memory usage tiny per-request: buffering 15-20 PDFs at once in
+  // RAM before any of them upload can exceed Render's free-tier memory
+  // limit and silently fail the whole batch.
+  app.post(`${prefix}/pdfs/bulk-item`, adminAuth,
+    upload.single("pdf"),
+    async (req, res) => {
+      try {
+        if (!req.file) return res.json({ success:false, message:"No file" });
+        const { category="", access="public" } = req.body;
+        const file = req.file;
+        const title = file.originalname.replace(/\.[^/.]+$/, "").replace(/_/g," ");
+        const detectedType = ALLOWED_TYPES[file.mimetype] || "pdf";
+        const fileId = await uploadToGridFS(file.buffer, file.originalname, file.mimetype);
+        const pdf = await PDF.create({
+          title, category, access, fileId,
+          filename: file.originalname, originalName: file.originalname,
+          fileSize: file.size, fileType: detectedType, uploadedBy:"admin001"
+        });
+        res.json({ success:true, title, id:pdf._id });
+      } catch(err) { res.json({ success:false, message:err.message }); }
+    }
+  );
+
   app.post(`${prefix}/pdfs/bulk`, adminAuth,
     upload.array("pdfs", 20),
     async (req, res) => {

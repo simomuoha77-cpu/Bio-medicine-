@@ -842,24 +842,39 @@ async function uploadSingle(){
 }
 
 async function uploadBulk(){
-  const files=document.getElementById("bulk-files").files;
+  const files=Array.from(document.getElementById("bulk-files").files);
   if(!files.length){toast("Select PDFs","er");return;}
-  const fd=new FormData();
-  Array.from(files).forEach(f=>fd.append("pdfs",f));
-  fd.append("category",document.getElementById("bulk-cat").value);
-  fd.append("access",document.getElementById("bulk-acc").value);
-  const iv=simProgress("bulk-fill","bulk-pct","bulk-prog",3000);
-  try{
-    const r=await aFetch("/api/mbx9k/pdfs/bulk",{method:"POST",body:fd});
-    clearInterval(iv);finishProgress("bulk-fill","bulk-pct");
-    const d=await r.json();
-    if(d.success){
-      toast(`${d.uploaded.length} PDFs uploaded!`,"ok");
-      document.getElementById("bulk-results").innerHTML=`<div style="background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.15);border-radius:9px;padding:12px;"><div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:7px;">✓ ${d.uploaded.length} uploaded</div>${d.uploaded.map(u=>`<div style="font-size:11px;color:var(--muted);padding:2px 0;">• ${u.title}</div>`).join("")}</div>`;
-      loadPdfs();loadStats();
-      setTimeout(()=>{document.getElementById("bulk-prog").style.display="none";document.getElementById("bulk-fill").style.width="0%";},2000);
-    }else{toast(d.message,"er");document.getElementById("bulk-prog").style.display="none";}
-  }catch{clearInterval(iv);toast("Upload failed","er");document.getElementById("bulk-prog").style.display="none";}
+  const category=document.getElementById("bulk-cat").value;
+  const access=document.getElementById("bulk-acc").value;
+
+  document.getElementById("bulk-prog").style.display="block";
+  const fillEl=document.getElementById("bulk-fill"),pctEl=document.getElementById("bulk-pct");
+  const resultsEl=document.getElementById("bulk-results");
+  const uploaded=[],failed=[];
+
+  for(let i=0;i<files.length;i++){
+    const pct=Math.round((i/files.length)*100);
+    fillEl.style.width=pct+"%";pctEl.textContent=`${i}/${files.length} — ${pct}%`;
+    resultsEl.innerHTML=`<div style="font-size:12px;color:var(--muted);">Uploading ${i+1} of ${files.length}: ${files[i].name}...</div>`;
+    const fd=new FormData();
+    fd.append("pdf",files[i]);fd.append("category",category);fd.append("access",access);
+    try{
+      const r=await aFetch("/api/mbx9k/pdfs/bulk-item",{method:"POST",body:fd});
+      const d=await r.json();
+      if(d.success) uploaded.push(d.title); else failed.push(`${files[i].name} — ${d.message||"failed"}`);
+    }catch{
+      failed.push(`${files[i].name} — connection error`);
+    }
+  }
+
+  fillEl.style.width="100%";pctEl.textContent=`${files.length}/${files.length} — 100%`;
+  toast(`${uploaded.length} uploaded${failed.length?`, ${failed.length} failed`:''}`, failed.length?"er":"ok");
+  resultsEl.innerHTML=`
+    ${uploaded.length?`<div style="background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.15);border-radius:9px;padding:12px;margin-bottom:${failed.length?'8px':'0'};"><div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:7px;">✓ ${uploaded.length} uploaded</div>${uploaded.map(t=>`<div style="font-size:11px;color:var(--muted);padding:2px 0;">• ${t}</div>`).join("")}</div>`:''}
+    ${failed.length?`<div style="background:rgba(255,92,92,0.05);border:1px solid rgba(255,92,92,0.15);border-radius:9px;padding:12px;"><div style="font-size:12px;font-weight:600;color:var(--red,#ff5c5c);margin-bottom:7px;">✗ ${failed.length} failed</div>${failed.map(t=>`<div style="font-size:11px;color:var(--muted);padding:2px 0;">• ${t}</div>`).join("")}</div>`:''}
+  `;
+  loadPdfs();loadStats();
+  setTimeout(()=>{document.getElementById("bulk-prog").style.display="none";fillEl.style.width="0%";},2500);
 }
 
 function toggleEditDept(){
