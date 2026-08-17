@@ -314,7 +314,7 @@ body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-he
 
   <!-- LIBRARY -->
   <div class="section" id="sec-library">
-    <div class="sec-hdr"><h2>PDF Library</h2><span style="font-size:13px;color:var(--muted);" id="lib-count"></span></div>
+    <div class="sec-hdr"><h2 id="lib-title">PDF Library</h2><span style="font-size:13px;color:var(--muted);" id="lib-count"></span></div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
       <div class="cat-bar" id="cat-bar" style="margin-bottom:0;flex:1;"><button class="cat-btn active" onclick="filterCat('',this)">All</button></div>
       <select id="lib-sort" onchange="onSortChange()" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:0 10px;height:34px;font-family:'Sora',sans-serif;font-size:13px;">
@@ -325,6 +325,7 @@ body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-he
         <option value="newest">Newest</option>
       </select>
     </div>
+    <div class="cat-bar" id="dept-bar" style="display:none;"></div>
     <div class="pdf-grid" id="lib-pdfs"><div class="empty"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading...</p></div></div>
   </div>
 
@@ -487,6 +488,7 @@ function goTo(name, btn){
   if(name==='purchases') loadPurchases();
   if(name==='notifications') loadNotifications();
   if(name==='apk') loadApkInfo();
+  if(name==='library') buildCatBar();
 }
 
 // ══ DATA ══
@@ -521,6 +523,8 @@ async function loadPurchasedIds(){
 }
 
 function catName(id){ return allCats.find(c=>c._id===id)?.name||''; }
+function isPastPaperCatId(id){ return catName(id).toLowerCase()==='past papers'; }
+function nonPastPaperPdfs(){ return allPdfs.filter(p=>!isPastPaperCatId(p.category)); }
 
 function pdfCard(p){
   const thumb = p.thumbnailId ? `/api/thumbnail/${p.thumbnailId}` : (p.thumbnail ? `/uploads/thumbnails/${p.thumbnail}` : null);
@@ -557,6 +561,7 @@ function pdfCard(p){
       <h3>${p.title}</h3>
       <div class="pdf-meta">
         <span><i class="fa-solid fa-folder" style="margin-right:3px;"></i>${catName(p.category)}</span>
+        ${isPastPaper&&p.department?`<span><i class="fa-solid fa-building-columns" style="margin-right:3px;"></i>${p.department}</span>`:''}
         <span><i class="fa-solid fa-download" style="margin-right:3px;"></i>${p.downloads}</span>
       </div>
       ${actionBtn}
@@ -567,7 +572,8 @@ function pdfCard(p){
 
 function renderHomePdfs(){
   const el=document.getElementById('home-pdfs');
-  el.innerHTML = allPdfs.length ? allPdfs.slice(0,8).map(pdfCard).join('') : `<div class="empty"><i class="fa-solid fa-book-medical"></i><p>No PDFs yet</p></div>`;
+  const list=nonPastPaperPdfs();
+  el.innerHTML = list.length ? list.slice(0,8).map(pdfCard).join('') : `<div class="empty"><i class="fa-solid fa-book-medical"></i><p>No PDFs yet</p></div>`;
 }
 
 let lastLibList=[];
@@ -597,18 +603,21 @@ function buildCatBar(){
   const bar=document.getElementById('cat-bar');
   bar.innerHTML=`<button class="cat-btn active" onclick="filterCat('',this)">All</button>`;
   allCats.forEach(c=>{
+    if(c.name.toLowerCase()==='past papers') return; // has its own dedicated nav entry, kept out of normal subject browsing
     const b=document.createElement('button');
     b.className='cat-btn'; b.textContent=c.name;
     b.onclick=()=>filterCat(c._id,b);
     bar.appendChild(b);
   });
-  renderLibrary(allPdfs);
+  document.getElementById('lib-title').textContent='PDF Library';
+  document.getElementById('dept-bar').style.display='none';
+  renderLibrary(nonPastPaperPdfs());
 }
 
 function filterCat(id,btn){
-  document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#cat-bar .cat-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
-  renderLibrary(id?allPdfs.filter(p=>p.category===id):allPdfs);
+  renderLibrary(id?allPdfs.filter(p=>p.category===id):nonPastPaperPdfs());
 }
 
 function syncBottomTabs(activeId){
@@ -618,14 +627,39 @@ function syncBottomTabs(activeId){
 
 function goToPastPapers(navBtn){
   goTo('library',navBtn);
+  document.getElementById('lib-title').textContent='Past Papers';
+  document.querySelectorAll('#cat-bar .cat-btn').forEach(b=>b.classList.remove('active'));
   const cat=allCats.find(c=>c.name.toLowerCase()==='past papers');
-  const catBtn=[...document.querySelectorAll('#cat-bar .cat-btn')].find(b=>b.textContent.trim().toLowerCase()==='past papers');
-  filterCat(cat?cat._id:'',catBtn||null);
+  const papers=cat?allPdfs.filter(p=>p.category===cat._id):[];
+
+  const deptBar=document.getElementById('dept-bar');
+  const depts=[...new Set(papers.map(p=>p.department).filter(Boolean))].sort();
+  if(depts.length){
+    deptBar.style.display='flex';
+    deptBar.innerHTML=`<button class="cat-btn active" onclick="filterPastPaperDept('',this)">All Departments</button>`+
+      depts.map(d=>`<button class="cat-btn" onclick="filterPastPaperDept('${d.replace(/'/g,"\\'")}',this)">${d}</button>`).join('');
+  } else {
+    deptBar.style.display='none';
+  }
+  renderLibrary(papers);
+}
+
+function filterPastPaperDept(dept,btn){
+  document.querySelectorAll('#dept-bar .cat-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  const cat=allCats.find(c=>c.name.toLowerCase()==='past papers');
+  const papers=cat?allPdfs.filter(p=>p.category===cat._id):[];
+  renderLibrary(dept?papers.filter(p=>p.department===dept):papers);
 }
 
 function onSearch(){
   const q=document.getElementById('gsearch').value.toLowerCase().trim();
-  if(!q){ renderLibrary(allPdfs); return; }
+  document.getElementById('lib-title').textContent='PDF Library';
+  document.getElementById('dept-bar').style.display='none';
+  document.querySelectorAll('#cat-bar .cat-btn').forEach(b=>b.classList.remove('active'));
+  const allBtn=document.querySelector('#cat-bar .cat-btn');
+  if(allBtn) allBtn.classList.add('active');
+  if(!q){ renderLibrary(nonPastPaperPdfs()); goTo('library',null); return; }
   renderLibrary(allPdfs.filter(p=>
     (p.title||'').toLowerCase().includes(q) ||
     (p.description||'').toLowerCase().includes(q) ||

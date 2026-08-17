@@ -307,7 +307,21 @@ tr:hover td{background:rgba(255,255,255,0.012);}
             </div>
             <div class="frow" style="margin-top:14px;">
               <div class="fg"><label>Title *</label><input type="text" id="up-title" placeholder="e.g. Human Anatomy Vol 1"></div>
-              <div class="fg"><label>Category *</label><select id="up-cat"></select></div>
+              <div class="fg"><label>Category *</label><select id="up-cat" onchange="toggleUpDept()"></select></div>
+            </div>
+            <div class="frow one" id="up-dept-row" style="display:none;">
+              <div class="fg">
+                <label><i class="fa-solid fa-building-columns" style="color:var(--accent);margin-right:4px;"></i>Department *</label>
+                <input type="text" id="up-dept" placeholder="e.g. Electrical, Nursing, Biomedical Engineering" list="dept-suggestions">
+                <datalist id="dept-suggestions">
+                  <option value="Nursing"></option>
+                  <option value="Biomedical Engineering"></option>
+                  <option value="Electrical"></option>
+                  <option value="Radiography"></option>
+                  <option value="EMT"></option>
+                  <option value="Clinical"></option>
+                </datalist>
+              </div>
             </div>
             <div class="frow one"><div class="fg"><label>Description</label><textarea id="up-desc" rows="2" placeholder="Brief description..."></textarea></div></div>
             <div class="frow three">
@@ -593,7 +607,10 @@ tr:hover td{background:rgba(255,255,255,0.012);}
     </div>
     <div class="frow">
       <div class="fg"><label>Title</label><input type="text" id="edit-title"></div>
-      <div class="fg"><label>Category</label><select id="edit-cat"></select></div>
+      <div class="fg"><label>Category</label><select id="edit-cat" onchange="toggleEditDept()"></select></div>
+    </div>
+    <div class="frow one" id="edit-dept-row" style="display:none;">
+      <div class="fg"><label><i class="fa-solid fa-building-columns" style="color:var(--accent);margin-right:4px;"></i>Department</label><input type="text" id="edit-dept" placeholder="e.g. Electrical, Nursing" list="dept-suggestions"></div>
     </div>
     <div class="frow one"><div class="fg"><label>Description</label><textarea id="edit-desc" rows="3"></textarea></div></div>
     <div class="frow">
@@ -711,6 +728,7 @@ async function loadCats(){
       const isFilter=id==="pdf-f-cat";
       el.innerHTML=(isFilter?'<option value="">All Categories</option>':'')+allCats.map(c=>`<option value="${c._id}">${c.name}</option>`).join("");
     });
+    toggleUpDept();
   }catch{}
 }
 
@@ -781,6 +799,12 @@ function simProgress(fillId,pctId,wrapId,duration=2000){
 }
 function finishProgress(fillId,pctId){document.getElementById(fillId).style.width="100%";document.getElementById(pctId).textContent="100%";}
 
+function toggleUpDept(){
+  const catId=document.getElementById("up-cat").value;
+  const isPastPaper=(catMap[catId]||"").toLowerCase()==="past papers";
+  document.getElementById("up-dept-row").style.display=isPastPaper?"":"none";
+}
+
 async function uploadSingle(){
   const file=document.getElementById("up-pdf-file").files[0];
   const title=document.getElementById("up-title").value.trim();
@@ -788,11 +812,15 @@ async function uploadSingle(){
   if(!file){toast("Select a file","er");return;}
   if(!title){toast("Title required","er");return;}
   if(!cat){toast("Select a category","er");return;}
+  const isPastPaper=(catMap[cat]||"").toLowerCase()==="past papers";
+  const dept=document.getElementById("up-dept").value.trim();
+  if(isPastPaper&&!dept){toast("Department required for Past Papers","er");return;}
   const fd=new FormData();
   fd.append("pdf",file);fd.append("title",title);fd.append("category",cat);
   fd.append("description",document.getElementById("up-desc").value);
   fd.append("subject",document.getElementById("up-subj").value);
   fd.append("semester",document.getElementById("up-sem").value);
+  fd.append("department",isPastPaper?dept:"");
   fd.append("access",document.getElementById("up-acc").value);
   fd.append("price",document.getElementById("up-price")?document.getElementById("up-price").value||"0":"0");
   const thumbFile=document.getElementById("up-thumb-file").files[0];
@@ -804,7 +832,7 @@ async function uploadSingle(){
     const d=await r.json();
     if(d.success){
       toast("PDF uploaded!","ok");
-      document.getElementById("up-pdf-file").value="";document.getElementById("up-title").value="";document.getElementById("up-desc").value="";document.getElementById("up-thumb-file").value="";
+      document.getElementById("up-pdf-file").value="";document.getElementById("up-title").value="";document.getElementById("up-desc").value="";document.getElementById("up-thumb-file").value="";document.getElementById("up-dept").value="";
       const prev=document.getElementById("up-thumb-prev");const img=prev.querySelector("img.thumb-img");if(img)img.remove();const ph=prev.querySelector(".thumb-placeholder");if(ph)ph.style.display="";
       document.getElementById("up-zone-lbl").textContent="Click or drag PDF here";
       loadPdfs();loadStats();
@@ -834,16 +862,24 @@ async function uploadBulk(){
   }catch{clearInterval(iv);toast("Upload failed","er");document.getElementById("bulk-prog").style.display="none";}
 }
 
+function toggleEditDept(){
+  const catId=document.getElementById("edit-cat").value;
+  const isPastPaper=(catMap[catId]||"").toLowerCase()==="past papers";
+  document.getElementById("edit-dept-row").style.display=isPastPaper?"":"none";
+}
+
 function openEdit(id){
   const pdf=allPdfs.find(p=>p._id===id);if(!pdf)return;
   document.getElementById("edit-id").value=id;document.getElementById("edit-title").value=pdf.title;
   document.getElementById("edit-desc").value=pdf.description||"";document.getElementById("edit-subj").value=pdf.subject||"";
+  document.getElementById("edit-dept").value=pdf.department||"";
   document.getElementById("edit-sem").value=pdf.semester||"";document.getElementById("edit-acc").value=pdf.access;if(document.getElementById("edit-price"))document.getElementById("edit-price").value=pdf.price||0;
   document.getElementById("edit-thumb-file").value="";
   const prev=document.getElementById("edit-thumb-prev");let img=prev.querySelector("img.thumb-img");const ph=document.getElementById("edit-thumb-placeholder");
   if(pdf.thumbnail){if(!img){img=document.createElement("img");img.className="thumb-img";img.style.cssText="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;";prev.appendChild(img);}img.src=`/uploads/thumbnails/${pdf.thumbnail}`;if(ph)ph.style.display="none";}
   else{if(img)img.remove();if(ph)ph.style.display="";}
   const sel=document.getElementById("edit-cat");Array.from(sel.options).forEach(o=>{o.selected=(o.value===pdf.category);});
+  toggleEditDept();
   document.getElementById("edit-modal").classList.add("open");
 }
 function closeModal(){document.getElementById("edit-modal").classList.remove("open");}
@@ -854,6 +890,7 @@ async function saveEdit(){
   fd.append("title",document.getElementById("edit-title").value);fd.append("description",document.getElementById("edit-desc").value);
   fd.append("category",document.getElementById("edit-cat").value);fd.append("access",document.getElementById("edit-acc").value);fd.append("price",document.getElementById("edit-price")?document.getElementById("edit-price").value||"0":"0");
   fd.append("subject",document.getElementById("edit-subj").value);fd.append("semester",document.getElementById("edit-sem").value);
+  fd.append("department",document.getElementById("edit-dept").value);
   if(thumbFile)fd.append("thumbnail",thumbFile);
   try{
     const r=await aFetch(`/api/mbx9k/pdfs/${id}`,{method:"PUT",body:fd});const d=await r.json();

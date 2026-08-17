@@ -75,6 +75,7 @@ const pdfSchema = new mongoose.Schema({
   category:     { type: String, required: true },
   subject:      { type: String, default: "" },
   semester:     { type: String, default: "" },
+  department:   { type: String, default: "" }, // e.g. Electrical, Nursing — used for Past Papers
   access:       { type: String, default: "public" },
   price:        { type: Number, default: 0 },
   // GridFS file IDs
@@ -1014,7 +1015,7 @@ function registerAdminRoutes(prefix) {
     async (req, res) => {
       try {
         if (!req.files?.pdf) return res.json({ success:false, message:"No file uploaded" });
-        const { title, description, category, access="public", subject, semester } = req.body;
+        const { title, description, category, access="public", subject, semester, department } = req.body;
         const price = parseFloat(req.body.price) || 0;
         if (!title || !category) return res.json({ success:false, message:"Title and category required" });
 
@@ -1032,7 +1033,7 @@ function registerAdminRoutes(prefix) {
         }
 
         const pdf = await PDF.create({
-          title, description, category, access, subject, semester, price,
+          title, description, category, access, subject, semester, department, price,
           fileId, thumbnailId,
           filename: uploadedFile.originalname,
           originalName: uploadedFile.originalname,
@@ -1062,9 +1063,9 @@ function registerAdminRoutes(prefix) {
       try {
         const existing = await PDF.findById(req.params.id);
         if (!existing) return res.json({ success:false, message:"File not found" });
-        const { title, description, category, access, subject, semester } = req.body;
+        const { title, description, category, access, subject, semester, department } = req.body;
         const price  = parseFloat(req.body.price) || 0;
-        const update = { title, description, category, access, subject, semester, price, updatedAt:new Date() };
+        const update = { title, description, category, access, subject, semester, department, price, updatedAt:new Date() };
 
         if (req.files?.thumbnail?.[0]) {
           // Delete old thumbnail from GridFS
