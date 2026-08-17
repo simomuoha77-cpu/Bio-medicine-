@@ -636,7 +636,7 @@ function goToPastPapers(navBtn){
   const depts=[...new Set(papers.map(p=>p.department).filter(Boolean))].sort();
   if(depts.length){
     deptBar.style.display='flex';
-    deptBar.innerHTML=`<button class="cat-btn active" onclick="filterPastPaperDept('',this)">All Departments</button>`+
+    deptBar.innerHTML=`<button class="cat-btn active" onclick="filterPastPaperDept('',this)">All Courses</button>`+
       depts.map(d=>`<button class="cat-btn" onclick="filterPastPaperDept('${d.replace(/'/g,"\\'")}',this)">${d}</button>`).join('');
   } else {
     deptBar.style.display='none';

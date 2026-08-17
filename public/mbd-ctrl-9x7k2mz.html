@@ -311,7 +311,7 @@ tr:hover td{background:rgba(255,255,255,0.012);}
             </div>
             <div class="frow one" id="up-dept-row" style="display:none;">
               <div class="fg">
-                <label><i class="fa-solid fa-building-columns" style="color:var(--accent);margin-right:4px;"></i>Department *</label>
+                <label><i class="fa-solid fa-building-columns" style="color:var(--accent);margin-right:4px;"></i>Course *</label>
                 <input type="text" id="up-dept" placeholder="e.g. Electrical, Nursing, Biomedical Engineering" list="dept-suggestions">
                 <datalist id="dept-suggestions">
                   <option value="Nursing"></option>
@@ -610,7 +610,7 @@ tr:hover td{background:rgba(255,255,255,0.012);}
       <div class="fg"><label>Category</label><select id="edit-cat" onchange="toggleEditDept()"></select></div>
     </div>
     <div class="frow one" id="edit-dept-row" style="display:none;">
-      <div class="fg"><label><i class="fa-solid fa-building-columns" style="color:var(--accent);margin-right:4px;"></i>Department</label><input type="text" id="edit-dept" placeholder="e.g. Electrical, Nursing" list="dept-suggestions"></div>
+      <div class="fg"><label><i class="fa-solid fa-building-columns" style="color:var(--accent);margin-right:4px;"></i>Course</label><input type="text" id="edit-dept" placeholder="e.g. Electrical, Nursing" list="dept-suggestions"></div>
     </div>
     <div class="frow one"><div class="fg"><label>Description</label><textarea id="edit-desc" rows="3"></textarea></div></div>
     <div class="frow">
@@ -814,7 +814,7 @@ async function uploadSingle(){
   if(!cat){toast("Select a category","er");return;}
   const isPastPaper=(catMap[cat]||"").toLowerCase()==="past papers";
   const dept=document.getElementById("up-dept").value.trim();
-  if(isPastPaper&&!dept){toast("Department required for Past Papers","er");return;}
+  if(isPastPaper&&!dept){toast("Course required for Past Papers","er");return;}
   const fd=new FormData();
   fd.append("pdf",file);fd.append("title",title);fd.append("category",cat);
   fd.append("description",document.getElementById("up-desc").value);
