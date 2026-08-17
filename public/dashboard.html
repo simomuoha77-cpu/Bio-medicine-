@@ -591,16 +591,17 @@ function sortList(list){
 
 function onSortChange(){ renderLibrary(lastLibList); }
 
-function renderLibrary(list){
+function renderLibrary(list,emptyMsg){
   lastLibList=list;
   const sorted=sortList(list);
   document.getElementById('lib-count').textContent=`${sorted.length} books`;
   const el=document.getElementById('lib-pdfs');
-  el.innerHTML = sorted.length ? sorted.map(pdfCard).join('') : `<div class="empty"><i class="fa-solid fa-search"></i><p>No PDFs found</p></div>`;
+  el.innerHTML = sorted.length ? sorted.map(pdfCard).join('') : `<div class="empty"><i class="fa-solid fa-search"></i><p>${emptyMsg||'No PDFs found'}</p></div>`;
 }
 
 function buildCatBar(){
   const bar=document.getElementById('cat-bar');
+  bar.style.display='';
   bar.innerHTML=`<button class="cat-btn active" onclick="filterCat('',this)">All</button>`;
   allCats.forEach(c=>{
     if(c.name.toLowerCase()==='past papers') return; // has its own dedicated nav entry, kept out of normal subject browsing
@@ -628,7 +629,7 @@ function syncBottomTabs(activeId){
 function goToPastPapers(navBtn){
   goTo('library',navBtn);
   document.getElementById('lib-title').textContent='Past Papers';
-  document.querySelectorAll('#cat-bar .cat-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('cat-bar').style.display='none'; // hide normal subject filters — this view is past papers only
   const cat=allCats.find(c=>c.name.toLowerCase()==='past papers');
   const papers=cat?allPdfs.filter(p=>p.category===cat._id):[];
 
@@ -641,7 +642,7 @@ function goToPastPapers(navBtn){
   } else {
     deptBar.style.display='none';
   }
-  renderLibrary(papers);
+  renderLibrary(papers,'No past papers uploaded yet');
 }
 
 function filterPastPaperDept(dept,btn){
@@ -649,12 +650,14 @@ function filterPastPaperDept(dept,btn){
   if(btn) btn.classList.add('active');
   const cat=allCats.find(c=>c.name.toLowerCase()==='past papers');
   const papers=cat?allPdfs.filter(p=>p.category===cat._id):[];
-  renderLibrary(dept?papers.filter(p=>p.department===dept):papers);
+  const filtered=dept?papers.filter(p=>p.department===dept):papers;
+  renderLibrary(filtered, dept?`No past papers for ${dept} yet`:'No past papers uploaded yet');
 }
 
 function onSearch(){
   const q=document.getElementById('gsearch').value.toLowerCase().trim();
   document.getElementById('lib-title').textContent='PDF Library';
+  document.getElementById('cat-bar').style.display='';
   document.getElementById('dept-bar').style.display='none';
   document.querySelectorAll('#cat-bar .cat-btn').forEach(b=>b.classList.remove('active'));
   const allBtn=document.querySelector('#cat-bar .cat-btn');
