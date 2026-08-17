@@ -345,10 +345,14 @@ tr:hover td{background:rgba(255,255,255,0.012);}
           <div class="ph"><span class="ph-ttl">Bulk Upload (up to 20)</span></div>
           <div class="pb">
             <div class="upload-zone" id="bulk-zone">
-              <input type="file" id="bulk-files" accept=".pdf,.doc,.docx,.ppt,.pptx,.xlsx,.xls" multiple onchange="updateZoneLabel('bulk-zone','bulk-files')">
+              <input type="file" id="bulk-files" accept=".pdf,.doc,.docx,.ppt,.pptx,.xlsx,.xls" multiple onchange="updateZoneLabel('bulk-zone','bulk-files');showBulkSelection()">
               <i class="fa-solid fa-layer-group"></i>
               <div class="uz-title" id="bulk-zone-lbl">Select multiple files</div>
               <div class="uz-sub">Up to 20 files at once</div>
+            </div>
+            <div id="bulk-selected-info" style="display:none;margin-top:10px;background:rgba(0,217,255,0.06);border:1px solid rgba(0,217,255,0.2);border-radius:9px;padding:12px;">
+              <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:6px;"><i class="fa-solid fa-check-circle"></i> <span id="bulk-selected-count"></span> selected — <span id="bulk-selected-size"></span></div>
+              <div id="bulk-selected-list" style="max-height:120px;overflow-y:auto;font-size:11px;color:var(--muted);"></div>
             </div>
             <div class="prog-wrap" id="bulk-prog" style="margin-top:12px;">
               <div class="prog-txt"><span>Uploading...</span><span id="bulk-pct">0%</span></div>
@@ -793,6 +797,18 @@ function updateZoneLabel(zoneId,inputId){
   else if(files.length>1)lbl.textContent=`${files.length} files selected`;
 }
 
+function showBulkSelection(){
+  const files=Array.from(document.getElementById("bulk-files").files);
+  const info=document.getElementById("bulk-selected-info");
+  if(!files.length){info.style.display="none";return;}
+  info.style.display="block";
+  const totalBytes=files.reduce((s,f)=>s+f.size,0);
+  const totalMB=(totalBytes/1024/1024).toFixed(1);
+  document.getElementById("bulk-selected-count").textContent=`${files.length} file${files.length>1?'s':''}`;
+  document.getElementById("bulk-selected-size").textContent=`${totalMB} MB total`;
+  document.getElementById("bulk-selected-list").innerHTML=files.map(f=>`<div style="padding:2px 0;">• ${f.name} (${(f.size/1024/1024).toFixed(1)} MB)</div>`).join("");
+}
+
 function simProgress(fillId,pctId,wrapId,duration=2000){
   document.getElementById(wrapId).style.display="block";let p=0;
   return setInterval(()=>{p=Math.min(p+4,92);document.getElementById(fillId).style.width=p+"%";document.getElementById(pctId).textContent=p+"%";},duration/25);
@@ -844,6 +860,13 @@ async function uploadSingle(){
 async function uploadBulk(){
   const files=Array.from(document.getElementById("bulk-files").files);
   if(!files.length){toast("Select PDFs","er");return;}
+
+  const oversized=files.filter(f=>f.size>100*1024*1024);
+  if(oversized.length){
+    toast(`${oversized.length} file(s) over 100MB won't upload — remove: ${oversized.map(f=>f.name).join(', ')}`,"er");
+    return;
+  }
+
   const category=document.getElementById("bulk-cat").value;
   const access=document.getElementById("bulk-acc").value;
 
@@ -874,6 +897,9 @@ async function uploadBulk(){
     ${failed.length?`<div style="background:rgba(255,92,92,0.05);border:1px solid rgba(255,92,92,0.15);border-radius:9px;padding:12px;"><div style="font-size:12px;font-weight:600;color:var(--red,#ff5c5c);margin-bottom:7px;">✗ ${failed.length} failed</div>${failed.map(t=>`<div style="font-size:11px;color:var(--muted);padding:2px 0;">• ${t}</div>`).join("")}</div>`:''}
   `;
   loadPdfs();loadStats();
+  document.getElementById("bulk-files").value="";
+  document.getElementById("bulk-selected-info").style.display="none";
+  document.getElementById("bulk-zone-lbl").textContent="Select multiple files";
   setTimeout(()=>{document.getElementById("bulk-prog").style.display="none";fillEl.style.width="0%";},2500);
 }
 
